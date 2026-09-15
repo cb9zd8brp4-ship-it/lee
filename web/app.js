@@ -1,4 +1,5 @@
-'use strict';
+
+setInterval(()=>{if(!document.hidden)refresh()},5*60*1000);'use strict';
 const C=window.LeeCore,$=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),safeUrl=C.safeUrl;
 const KEY='lee.discovery.v2',CACHE='lee.discovery.feed.v2';
 let state=C.blank(),feed,storageOK=true,confirmAction=null,shownNotes=10,editing=null,view='today',toastTimer,excerptMode='摘录';
