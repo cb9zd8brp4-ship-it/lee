@@ -1,0 +1,183 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Lee 的个人内容发现器：具体文章、有限探索、收藏与深聊。"><meta name="theme-color" content="#f6f4ee"><title>Lee 信息首页</title><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css"></head><body>
+<header class="topbar"><a class="brand" href="#today">LEE <span>信息与生活 / 02</span></a><nav class="viewnav" aria-label="主导航"><button data-view="today" aria-selected="true">今日</button><button data-view="archive" aria-selected="false">最近 7 天</button><button data-view="favorites" aria-selected="false">我的书架</button><button data-view="sources" aria-selected="false">来源库</button><button data-view="notes" aria-selected="false">偷到的东西</button></nav></header>
+<main><div id="storageNotice" class="notice" role="alert" hidden></div><div id="dataNotice" class="notice" role="status" hidden></div>
+<section id="today" data-panel="today"><div class="hero"><div class="hero-row"><div><div class="eyebrow">遇见一点好东西，再回到生活里。</div><h1>Lee 信息首页</h1><p class="subtitle">每天两次，读一点值得花时间的东西。</p></div><div class="door-mark" aria-hidden="true"></div></div><div class="batchline"><div><div id="updatedAt">正在读取已保存的内容…</div><div class="hint">北京时间 08:17 / 17:17 计划更新 · 可能排队延迟 · 每组最多 10 条</div></div><div class="batch-actions"><button id="nextBatch">换一批 ↻</button><a href="https://chatgpt.com/" class="chat-link" target="_blank" rel="noopener noreferrer">打开 ChatGPT ↗</a></div></div></div><div id="todayContent"></div><p id="batchEnd" class="endline"></p></section>
+<section id="archive" data-panel="archive" hidden><div class="section-head view-title"><div><h2>最近 7 天</h2><p class="caption">昨天没看完，今天还找得到。想留得更久，就收藏。</p></div></div><div class="archive-tools"><input id="archiveSearch" type="search" placeholder="找一篇文章或一个关键词" aria-label="搜索最近七天"><select id="archiveDate" aria-label="按发布日期筛选"><option value="all">全部日期</option></select></div><div id="archiveContent" class="discovery-grid archive-grid"></div><p class="endline">这里只保留七天。更早的内容，留在你的书架里。</p></section>
+<section id="favorites" data-panel="favorites" hidden><div class="section-head view-title"><div><h2>我的书架</h2><p class="caption">暂时没时间，就先放在这里。收藏当前仅保存在此设备浏览器。</p></div></div><div class="excerpt-setup"><h3>把原文里打动你的一段带回来</h3><p id="bookmarkHelp" class="hint">把“存到 Lee”拖到 Safari 书签栏。阅读时选中文字再点书签，回来确认保存；选中文字仅经链接片段传到本页，不上传服务器。也可以手动粘贴。</p><div class="small-actions"><a id="excerptBookmark" class="chat-link">存到 Lee</a><button id="newExcerpt">手动保存摘录</button><button id="newLead">保存内容线索</button></div></div><div class="favorite-tools"><input id="favoriteSearch" type="search" aria-label="搜索收藏" placeholder="标题、简介，或自己的备注…"><select id="favoriteType" aria-label="按收藏类型筛选"><option value="all">所有类型</option></select><select id="favoriteSource" aria-label="按收藏来源筛选"><option value="all">所有来源</option></select><select id="favoriteStatus" aria-label="按阅读状态筛选"><option value="all">所有状态</option><option>未读</option><option>已读</option><option>已聊</option></select></div><div id="favoriteContent" class="discovery-grid"></div><p class="endline">这里保存链接和你的想法，不保存文章全文。</p></section>
+<section id="sources" data-panel="sources" hidden><div class="section-head view-title"><div><h2>来源库</h2><p class="caption">多推荐一点，或暂时不见面。你的调整只影响这台设备。</p></div><button id="addEntry">＋ 添加入口</button></div><div class="settingsbar"><label><input id="includeOverseas" type="checkbox">推荐包含海外内容</label><span class="hint">英文原文可用 Safari 翻译；地区可达性未保证。</span></div><div id="sourceStatus" class="statusline"></div><div id="dynamicSources"></div><details><summary>手动入口与工具来源（不进入每日动态推荐）</summary><div id="manualSources" class="source-grid" style="margin-top:20px"></div></details><details><summary>推荐怎样变化？</summary><div class="details-body"><p>有意思：主题 +0.3，来源 +0.15；没感觉反向调整，一般不变。同一篇内容只记一次，改选会替换反馈。主题权重 0.25–3，来源反馈权重 0.4–2。来源开关再乘 1.6／1／0.35，屏蔽为 0。</p><p>来源先筛，再按具体简介的兴趣关联、相邻探索、信息密度、阅读体验与可继续性评分；低于 6 分不进入首页。语言和媒体名气不加分。每组尽量约七成已知兴趣、三成相邻探索，合格内容不足时减少数量。反复喜欢的探索来源会在本机提高排序，但不会未经公开免费审核就改变服务器来源池。</p><p>同一批次刷新不重新推荐。换批最多三组，来自本轮静态候选；看过或明确没感觉的内容不再进入新推荐。</p><div id="weights" class="weights"></div></div></details><div class="radar"><div><h2>碎片雷达</h2><p>用来撞见，不负责沉淀。记下关键词，再回来深挖。</p></div><div id="radarLinks" class="radar-links"></div></div></section>
+<section id="notes" data-panel="notes" hidden><div class="section-head"><div><h2>我最近偷到的东西</h2><p class="caption">今天有没有什么值得偷回自己身上的？</p></div></div><div class="notes-wrap"><form id="noteForm" class="note-form"><h3>把一点东西留下来。</h3><p class="hint">一个表达、一种判断，或一个想试试的方法。</p><label class="field">我偷到了什么 <span class="hint">· 必填</span><textarea id="noteText" required maxlength="5000" placeholder="不止记下观点，也记下我想怎么用。"></textarea></label><label class="field">来源 / 链接 <span class="hint">· 选填</span><input id="noteSource" maxlength="2000" placeholder="文章链接、作者，或几个关键词"></label><label class="field">分类 <span class="hint">· 选填</span><select id="noteCategory"><option value="">暂不分类</option><option>表达</option><option>思维</option><option>商业</option><option>创作</option><option>生活</option><option>其他</option></select></label><button type="submit" class="primary">存下这一点</button><p class="hint" style="margin-top:10px">日期自动记录，只保存在这台电脑的浏览器里。</p></form><div><div class="notes-tools"><input id="noteSearch" type="search" aria-label="搜索偷到的东西" placeholder="找回一个关键词…"><select id="noteFilter" aria-label="按笔记分类筛选"><option value="all">所有分类</option><option value="">未分类</option><option>表达</option><option>思维</option><option>商业</option><option>创作</option><option>生活</option><option>其他</option></select></div><div id="noteList"></div><button id="moreNotes" class="plain" hidden>再看 10 条</button></div></div></section>
+</main>
+<footer><div class="footer-line"><span>挑一篇就好。剩下的时间，留给自己的生活。</span><span>Lee 信息首页 · 第二版</span></div><details id="backupSection"><summary>设置 · 本地数据与备份</summary><div class="details-body"><p>收藏当前仅保存在此设备浏览器。手机、Safari、Chrome 与 Dock Web App 可能各有一套数据，不会自动同步。</p><p>备份包含收藏、备注、笔记、兴趣与来源设置，不会上传。可导入 V1 备份，把“偷到的东西”和兴趣带过来。</p><div class="small-actions"><button id="exportData">导出备份</button><button id="copyBackup">复制备份全文</button><button id="importData">导入 V1 / V2 备份</button><a href="Lee_信息首页.html" download class="chat-link">下载最后一版离线首页</a></div><input id="restoreFile" type="file" accept=".json,application/json"></div></details></footer>
+<dialog id="entryDialog" aria-labelledby="entryTitle"><div class="dialog-top"><h2 id="entryTitle">添加手动入口</h2><button class="plain" data-close="entryDialog" aria-label="关闭添加入口">✕</button></div><form id="entryForm"><label class="field">名称<input id="entryName" required maxlength="80"></label><label class="field">URL<input id="entryUrl" required type="url" maxlength="2000" placeholder="https://…"></label><label class="field">分类<select id="entryCategory"></select></label><label class="field">一句话说明<input id="entryDesc" required maxlength="180" placeholder="适合什么时候、看点什么？"></label><label class="field"><input id="entryDeep" type="checkbox" checked> 这是长内容手动入口</label><div class="dialog-actions"><button type="button" data-close="entryDialog">取消</button><button class="primary" type="submit">添加入口</button></div></form></dialog>
+<dialog id="copyDialog" aria-labelledby="copyTitle"><h2 id="copyTitle">提示词已准备好</h2><p class="hint">浏览器没有允许自动复制。全文已选中，按 ⌘C 复制，再去 ChatGPT 粘贴。</p><textarea id="copyText" readonly aria-label="完整提示词"></textarea><div class="dialog-actions"><button data-close="copyDialog">完成</button><a class="chat-link" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">打开 ChatGPT ↗</a></div></dialog>
+<dialog id="confirmDialog" aria-labelledby="confirmTitle"><h2 id="confirmTitle">确认操作</h2><p id="confirmMessage"></p><div class="dialog-actions"><button id="cancelConfirm">取消</button><button class="primary" id="acceptConfirm">确认</button></div></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<dialog id="favoriteDialog" aria-labelledby="favoriteTitle"><h2 id="favoriteTitle">给这篇内容留句话</h2><form id="favoriteForm"><label class="field">阅读状态<select id="editStatus"><option>未读</option><option>已读</option><option>已聊</option></select></label><label class="field">我的备注<textarea id="editNote" maxlength="2000" placeholder="我为什么想读它？读完想试试什么？"></textarea></label><div class="dialog-actions"><button type="button" data-close="favoriteDialog">取消</button><button class="primary" type="submit">保存</button></div></form></dialog>
+<dialog id="excerptDialog" aria-labelledby="excerptHeading"><div class="dialog-top"><h2 id="excerptHeading">保存一段阅读摘录</h2><button data-close="excerptDialog" aria-label="关闭摘录">✕</button></div><form id="excerptForm"><label class="field">文章标题<input id="excerptTitle" required maxlength="240"></label><label class="field">原文链接<input id="excerptUrl" required type="url" maxlength="2000"></label><label class="field">摘录原文 / 线索说明（线索可选）<textarea id="excerptQuote" required maxlength="12000"></textarea></label><label class="field">我为什么停下来<textarea id="excerptNote" maxlength="2000"></textarea></label><div class="dialog-actions"><button type="submit">保存到书架</button><button type="button" id="excerptSteal">也存入偷到的东西</button><button type="button" id="excerptChat">保存并复制给 Chat</button></div></form></dialog><noscript><p>请启用 JavaScript，才能查看本地内容与收藏。</p></noscript><script id="embeddedFeed" type="application/json">__FEED__</script><script>window.LEE_LEGACY_SOURCES=[
+  {
+    "id": "jiemian-culture",
+    "name": "界面 · 文化",
+    "url": "https://www.jiemian.com/lists/130.html",
+    "category": "人物与社会",
+    "desc": "从人物访谈和社会观察里，看见日常生活背后的变化。",
+    "deep": true,
+    "recent": true,
+    "steal": true,
+    "overseas": false
+  },
+  {
+    "id": "noema",
+    "name": "Noema",
+    "url": "https://www.noemamag.com/",
+    "category": "人物与社会",
+    "desc": "读技术与人的长篇讨论，重新想想我们正在怎样生活。",
+    "deep": true,
+    "recent": false,
+    "steal": true,
+    "overseas": true
+  },
+  {
+    "id": "jiemian-business",
+    "name": "界面 · 商业",
+    "url": "https://www.jiemian.com/lists/2.html",
+    "category": "商业与公司",
+    "desc": "跟进公司、消费与行业变化，顺着一门生意往里看。",
+    "deep": false,
+    "recent": true,
+    "steal": true,
+    "overseas": false
+  },
+  {
+    "id": "wip",
+    "name": "Works in Progress",
+    "url": "https://worksinprogress.co/",
+    "category": "商业与公司",
+    "desc": "拆开产业、制度与城市案例，看看改变究竟怎样发生。",
+    "deep": true,
+    "recent": false,
+    "steal": true,
+    "overseas": true
+  },
+  {
+    "id": "sspai",
+    "name": "少数派 · Matrix",
+    "url": "https://sspai.com/matrix",
+    "category": "科技与未来",
+    "desc": "读真实的工具实践与数字生活长文，借一点别人的方法。",
+    "deep": true,
+    "recent": false,
+    "steal": true,
+    "overseas": false
+  },
+  {
+    "id": "guokr",
+    "name": "果壳 · 科学人",
+    "url": "https://www.guokr.com/science/category/all",
+    "category": "科技与未来",
+    "desc": "从科学解释和新发现出发，把好奇心往事实推近一点。",
+    "deep": true,
+    "recent": true,
+    "steal": false,
+    "overseas": false
+  },
+  {
+    "id": "quanta",
+    "name": "Quanta Magazine",
+    "url": "https://www.quantamagazine.org/",
+    "category": "科技与未来",
+    "desc": "沿着科学家的问题，走进数学、计算与生命的深处。",
+    "deep": true,
+    "recent": false,
+    "steal": false,
+    "overseas": true
+  },
+  {
+    "id": "writer-interview",
+    "name": "中国作家网 · 访谈",
+    "url": "https://www.chinawriter.com.cn/403997/index.html",
+    "category": "文化与写作",
+    "desc": "听作家谈创作与人生，留意他们如何观察和表达。",
+    "deep": true,
+    "recent": false,
+    "steal": true,
+    "overseas": false
+  },
+  {
+    "id": "writer-new",
+    "name": "中国作家网 · 新作品",
+    "url": "https://www.chinawriter.com.cn/404015/index.html",
+    "category": "文化与写作",
+    "desc": "读散文、纪实与小说，偷师一个细节怎样变成故事。",
+    "deep": true,
+    "recent": false,
+    "steal": true,
+    "overseas": false
+  },
+  {
+    "id": "aeon",
+    "name": "Aeon · Essays",
+    "url": "https://aeon.co/essays",
+    "category": "文化与写作",
+    "desc": "用哲学、心理学与历史长文，松动一个习以为常的判断。",
+    "deep": true,
+    "recent": false,
+    "steal": true,
+    "overseas": true
+  },
+  {
+    "id": "smith-history",
+    "name": "Smithsonian · 历史",
+    "url": "https://www.smithsonianmag.com/category/history/",
+    "category": "人物与社会",
+    "desc": "从考古、人物与历史现场，遇见奇怪但有来处的故事。",
+    "deep": true,
+    "recent": false,
+    "steal": false,
+    "overseas": true
+  },
+  {
+    "id": "gooood",
+    "name": "谷德 · 设计与建筑",
+    "url": "https://www.gooood.cn/",
+    "category": "城市与生活",
+    "desc": "看空间如何回应生活，从建筑案例里借一种观看方式。",
+    "deep": true,
+    "recent": true,
+    "steal": true,
+    "overseas": false
+  },
+  {
+    "id": "smith-travel",
+    "name": "Smithsonian · 旅行与地方",
+    "url": "https://www.smithsonianmag.com/category/travel/",
+    "category": "城市与生活",
+    "desc": "透过博物馆、街区与地方文化，认识一个地方的性格。",
+    "deep": true,
+    "recent": false,
+    "steal": true,
+    "overseas": true
+  },
+  {
+    "id": "stats",
+    "name": "国家统计局 · 数据解读",
+    "url": "https://www.stats.gov.cn/sj/sjjd/",
+    "category": "数据与世界",
+    "desc": "看消费、人口与经济数据的官方解释，给直觉找个参照。",
+    "deep": true,
+    "recent": true,
+    "steal": false,
+    "overseas": false
+  },
+  {
+    "id": "owid",
+    "name": "Our World in Data",
+    "url": "https://ourworldindata.org/",
+    "category": "数据与世界",
+    "desc": "用研究和数据看世界长期变化，把模糊的感觉变成问题。",
+    "deep": true,
+    "recent": false,
+    "steal": false,
+    "overseas": true
+  }
+];</script><script src="core.js"></script><script src="app.js"></script></body></html>

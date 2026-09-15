@@ -1,0 +1,107 @@
+[
+  {
+    "id": "vietnam-coffee",
+    "title": "把越南街边咖啡的甜与苦带回家",
+    "url": "https://www.vietnam.travel/things-to-do/secret-art-vietnamese-coffee",
+    "source": "Vietnam Tourism",
+    "sourceId": "vietnam",
+    "publishedAt": "2026-09-13T00:00:00Z",
+    "dateKind": "编辑核验时间（非发布）",
+    "type": "想试",
+    "direction": "do",
+    "evergreen": true,
+    "excerpt": "越南旅游官方介绍了 phin 滴滤、炼乳与罗布斯塔咖啡的组合。从一种喝法进入一种街边生活节奏。",
+    "excerptBasis": "编辑选题提示与实践建议，依据所链接官方资料；非自动正文总结",
+    "action": "15–20 分钟：用现有咖啡分别做一小杯原味与加少量炼乳、冰块的版本，对比苦甜和口感。简化体验不等同于传统 phin 配方。",
+    "tags": [
+      "咖啡",
+      "地方文化",
+      "生活"
+    ],
+    "category": "城市与生活",
+    "language": "EN",
+    "tier": "explore",
+    "reasonZh": "从阅读走向一次自己的观察与尝试。"
+  },
+  {
+    "id": "exploratorium-camera",
+    "title": "用薯片筒做一台没有镜头的相机",
+    "url": "https://annex.exploratorium.edu/science-explorer/pringles_pinhole.html",
+    "source": "Exploratorium",
+    "sourceId": "exploratorium",
+    "publishedAt": "2026-09-13T00:00:00Z",
+    "dateKind": "编辑核验时间（非发布）",
+    "type": "想试",
+    "direction": "do",
+    "evergreen": true,
+    "excerpt": "暗箱让世界以倒置的图像出现。试着不用手机，重新观察光如何组成画面。",
+    "excerptBasis": "编辑选题提示与实践建议，依据所链接官方资料；非自动正文总结",
+    "action": "约 45 分钟：按馆方步骤用空筒、半透明盖、锡纸和针孔搭暗箱，对比近景与远景。切割注意手部安全；不要直接观察太阳。",
+    "tags": [
+      "摄影",
+      "创作",
+      "科学"
+    ],
+    "category": "城市与生活",
+    "language": "EN",
+    "tier": "explore",
+    "reasonZh": "从阅读走向一次自己的观察与尝试。"
+  },
+  {
+    "id": "exploratorium-blind",
+    "title": "你看到的完整世界，有一部分是大脑补上的",
+    "url": "https://www.exploratorium.edu/snacks/blind-spot",
+    "source": "Exploratorium",
+    "sourceId": "exploratorium",
+    "publishedAt": "2026-09-13T00:00:00Z",
+    "dateKind": "编辑核验时间（非发布）",
+    "type": "想试",
+    "direction": "do",
+    "evergreen": true,
+    "excerpt": "用一张卡片找到视觉盲点，再观察大脑如何把缺失的线条补齐。把“我亲眼看见”变成一个可检验的问题。",
+    "excerptBasis": "编辑选题提示与实践建议，依据所链接官方资料；非自动正文总结",
+    "action": "20 分钟：按原文画圆点与十字，分别遮一只眼缓慢移动卡片，再加贯穿的横线重复。记下圆点消失时，你以为看到了什么。",
+    "tags": [
+      "心理",
+      "科学",
+      "生活"
+    ],
+    "category": "城市与生活",
+    "language": "EN",
+    "tier": "explore",
+    "reasonZh": "从阅读走向一次自己的观察与尝试。"
+  },
+  {
+    "id": "nasa-color-space",
+    "title": "《太空的颜色》：谁能想象自己成为宇航员？",
+    "url": "https://plus.nasa.gov/video/the-color-of-space-a-nasa-documentary-showcasing-the-stories-of-black-astronauts/",
+    "source": "NASA+",
+    "sourceId": "nasa-plus",
+    "publishedAt": "2026-09-13T00:00:00Z",
+    "dateKind": "编辑核验（非首映）",
+    "type": "纪录片",
+    "direction": "know",
+    "evergreen": true,
+    "year": "2022",
+    "country": "美国",
+    "duration": "50 分 07 秒",
+    "excerpt": "通过黑人宇航员的经历，观察“我也能去那里”的想象从何而来，以及进入一个高门槛行业需要哪些支持。",
+    "excerptBasis": "编辑视角提示，依据 NASA 官方介绍；不含剧情推演",
+    "tags": [
+      "人物",
+      "社会",
+      "科学"
+    ],
+    "category": "人物与社会",
+    "language": "EN",
+    "tier": "explore",
+    "rights": "NASA 官方免费在线播放；实际可播放性受当地网络影响。",
+    "reasonZh": "从具体人物出发，重新看待职业、机会与想象。",
+    "viewingAccess": {
+      "mode": "none",
+      "evidenceUrl": "https://plus.nasa.gov/video/the-color-of-space-a-nasa-documentary-showcasing-the-stories-of-black-astronauts/",
+      "verifiedAt": "2026-09-15T00:00:00Z",
+      "note": "用户实测：只有英文音频或字幕，无可靠中文观看方式"
+    }
+  }
+]

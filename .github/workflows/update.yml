@@ -1,0 +1,58 @@
+name: Lee 信息首页每日更新
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 0,9 * * *'
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: lee-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      HF_HUB_DISABLE_XET: '1'
+      HF_HUB_DOWNLOAD_TIMEOUT: '120'
+      TOKENIZERS_PARALLELISM: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: lee-marian-en-zh-v1
+      - run: pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -r requirements.txt
+      - name: 恢复上次在线内容与中文缓存
+        run: python scripts/restore_feed.py
+      - name: 测试兴趣、收藏与链接校验逻辑
+        run: |
+          node --test tests/core.test.cjs
+          python -m unittest discover -s tests -p 'test_*.py'
+      - name: 抓取正文链接并生成中文初筛
+        run: python scripts/build_feed.py
+      - run: python scripts/build_site.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with: {path: dist}
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
