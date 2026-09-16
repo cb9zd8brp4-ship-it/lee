@@ -15,6 +15,12 @@ class PipelineTests(unittest.TestCase):
         items=p.parse_feed(xml,source,now);self.assertEqual(len(items),1);self.assertEqual(items[0]['title'],'A real story')
     def test_deduplication(self):
         self.assertEqual(len(p.dedupe([dict(id='a',url='https://example.org/a?utm_source=x',title='An example long title about an interesting thing'),dict(id='b',url='https://example.org/a',title='Same') ])),1)
+    def test_candidate_plan_puts_unseen_articles_first(self):
+        def article(i,source='s'):return dict(id=i,url=f'https://example.org/{i}',title=f'Article {i}',sourceId=source,publishedAt='2026-09-16T00:00:00Z',type='长文')
+        old=[article('old1'),article('old2')];new=[article('new1'),article('new2')]
+        selected,new_ids=p.candidate_plan(old+new,{'items':old},10)
+        self.assertEqual(new_ids,['new1','new2'])
+        self.assertEqual([i['id'] for i in selected[:2]],new_ids)
     def test_article_rejects_private_redirect(self):
         class Response:
             def __init__(self,*a,**k):
