@@ -112,6 +112,14 @@ def balanced(items,limit=40):
         for group in groups.values():
             if depth<len(group) and len(chosen)<limit:chosen.append(group[depth])
     return chosen[:limit]
+def candidate_plan(eligible,previous,limit=40):
+    """Put genuinely unseen articles first, then fill with still-valid recent work."""
+    previous_ids={i.get('id') for i in previous.get('items',[])}
+    new=[i for i in eligible if i.get('id') not in previous_ids and not i.get('evergreen')]
+    recent=[i for i in eligible if i.get('id') in previous_ids or i.get('evergreen')]
+    chosen=dedupe(balanced(new,limit)+balanced(recent,limit))[:limit]
+    chosen_ids={i['id'] for i in chosen}
+    return chosen,[i['id'] for i in new if i['id'] in chosen_ids]
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--fixtures',type=Path);ap.add_argument('--skip-network-check',action='store_true');ap.add_argument('--no-translation',action='store_true');args=ap.parse_args()
     now=dt.datetime.now(UTC);path=ROOT/'data/feed.json';previous=json.loads(path.read_text()) if path.exists() else {};sources=json.loads((ROOT/'sources.json').read_text());fresh=[];statuses=[]
@@ -135,7 +143,7 @@ def main():
     reviewed=screen(dedupe(checked),sources)
     editorial_rejected=[{'id':i['id'],'score':i['editorial']['score'],'reasons':i['editorial']['reasons']} for i in reviewed if not i['editorial']['eligible']]
     eligible=sorted([i for i in reviewed if i['editorial']['eligible']],key=lambda i:i['editorial']['score'],reverse=True)
-    selected=balanced(eligible,40)
+    selected,new_item_ids=candidate_plan(eligible,previous,40)
     print(f'逐篇编辑初筛：{len(eligible)} 通过，{len(editorial_rejected)} 不进入主推荐',flush=True)
     if not args.no_translation:
         from translate_metadata import localize
@@ -145,14 +153,15 @@ def main():
             cached={i['id']:i for i in old if i.get('titleZh') and i.get('excerptZh')}
             selected=[cached.get(i['id'],i) for i in selected]
     selected=[i for i in selected if re.search(r'[\u4e00-\u9fff]',i.get('titleZh','')) and re.search(r'[\u4e00-\u9fff]',i.get('excerptZh',''))]
+    selected_ids=[i['id'] for i in selected];new_item_ids=[i for i in new_item_ids if i in set(selected_ids)]
     archive=screen(dedupe(selected+[i for i in old if i.get('titleZh') and i['id'] not in {x['id'] for x in rejected}])[:160],sources)
     if len(selected)<8:
         if len(previous.get('items',[]))<8:raise SystemExit('未获得足够的中文且正文可访问内容，拒绝首次空发布')
         retained=screen([i for i in previous.get('items',[]) if i['id'] not in {x['id'] for x in rejected}],sources)
-        result={**previous,'items':retained,'lastGoodItems':retained,'candidateIds':[i['id'] for i in retained if i['editorial']['eligible']][:40],'attemptedAt':iso(now),'stale':True,'statuses':statuses,'linkFailures':rejected,'sources':sources}
+        result={**previous,'items':retained,'lastGoodItems':retained,'candidateIds':[i['id'] for i in retained if i['editorial']['eligible']][:40],'attemptedAt':iso(now),'checkedAt':iso(now),'newItemIds':[],'stale':True,'statuses':statuses,'linkFailures':rejected,'sources':sources}
     else:
-        generated=iso(dt.datetime.now(UTC));result=dict(schemaVersion=2,generatedAt=generated,attemptedAt=generated,batchId=hashlib.sha256((generated+''.join(i['id'] for i in selected)).encode()).hexdigest()[:16],items=archive,candidateIds=[i['id'] for i in selected],lastGoodItems=archive,sources=sources,statuses=statuses,linkFailures=rejected,stale=False)
+        generated=iso(dt.datetime.now(UTC));content_updated=generated if new_item_ids else previous.get('contentUpdatedAt',previous.get('generatedAt',generated));result=dict(schemaVersion=2,generatedAt=generated,attemptedAt=generated,checkedAt=generated,contentUpdatedAt=content_updated,batchId=hashlib.sha256(''.join(selected_ids).encode()).hexdigest()[:16],items=archive,candidateIds=selected_ids,newItemIds=new_item_ids,lastGoodItems=archive,sources=sources,statuses=statuses,linkFailures=rejected,stale=False)
     result['editorialVersion']=3;result['editorialRejected']=editorial_rejected;result.pop('lastGoodItems',None)
     path.parent.mkdir(exist_ok=True);tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(result,ensure_ascii=False,separators=(',',':')));os.replace(tmp,path)
-    print(json.dumps({'generatedAt':result['generatedAt'],'items':len(result['items']),'candidates':len(result.get('candidateIds',[])),'articleChecksPassed':len(checked),'rejected':len(rejected),'stale':result['stale']},ensure_ascii=False))
+    print(json.dumps({'generatedAt':result['generatedAt'],'newItems':len(result.get('newItemIds',[])),'items':len(result['items']),'candidates':len(result.get('candidateIds',[])),'articleChecksPassed':len(checked),'rejected':len(rejected),'stale':result['stale']},ensure_ascii=False))
 if __name__=='__main__':main()
