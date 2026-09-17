@@ -8,19 +8,25 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(p.canonical('https://example.org/book.epub?source=feed&utm_source=rss'),'https://example.org/book.epub?source=feed')
         self.assertIsNone(p.canonical('javascript:alert(1)'))
         self.assertIsNone(p.canonical('https://localhost/private'))
-    def test_recent_date_and_paywall_filter(self):
+    def test_type_specific_retention_windows(self):
         now=dt.datetime(2026,9,13,tzinfo=p.UTC)
-        xml=b'<rss><channel><item><title>A real story</title><link>https://example.org/article/1</link><pubDate>Sat, 12 Sep 2026 00:00:00 GMT</pubDate><description>A public description.</description></item><item><title>Premium-only report</title><link>https://example.org/article/2</link><pubDate>Sat, 12 Sep 2026 00:00:00 GMT</pubDate></item><item><title>Old</title><link>https://example.org/article/3</link><pubDate>Sat, 01 Aug 2026 00:00:00 GMT</pubDate></item></channel></rss>'
-        source=dict(id='example',name='Example',url='https://example.org',type='长文',language='EN',category='科技与未来',tier='core')
-        items=p.parse_feed(xml,source,now);self.assertEqual(len(items),1);self.assertEqual(items[0]['title'],'A real story')
+        self.assertEqual(p.retention_days('新闻'),14);self.assertEqual(p.retention_days('数据'),45);self.assertEqual(p.retention_days('长文'),180)
+        xml=b'''<rss><channel>
+        <item><title>Recent long article</title><link>https://example.org/article/1</link><pubDate>Sat, 01 Aug 2026 00:00:00 GMT</pubDate><description>A public description.</description></item>
+        <item><title>Very old long article</title><link>https://example.org/article/2</link><pubDate>Mon, 01 Dec 2025 00:00:00 GMT</pubDate><description>Old description.</description></item>
+        <item><title>Premium-only report</title><link>https://example.org/article/3</link><pubDate>Sat, 12 Sep 2026 00:00:00 GMT</pubDate></item>
+        </channel></rss>'''
+        source=dict(id='example',name='Example',url='https://example.org',type='长文',language='EN',category='科技与未来',tier='core',desc='desc')
+        stats={'raw':0,'timeRejected':0};items=p.parse_feed(xml,source,now,stats)
+        self.assertEqual([i['title'] for i in items],['Recent long article']);self.assertEqual(stats['raw'],3);self.assertEqual(stats['timeRejected'],1)
     def test_deduplication(self):
-        self.assertEqual(len(p.dedupe([dict(id='a',url='https://example.org/a?utm_source=x',title='An example long title about an interesting thing'),dict(id='b',url='https://example.org/a',title='Same') ])),1)
-    def test_candidate_plan_puts_unseen_articles_first(self):
-        def article(i,source='s'):return dict(id=i,url=f'https://example.org/{i}',title=f'Article {i}',sourceId=source,publishedAt='2026-09-16T00:00:00Z',type='长文')
-        old=[article('old1'),article('old2')];new=[article('new1'),article('new2')]
-        selected,new_ids=p.candidate_plan(old+new,{'items':old},10)
-        self.assertEqual(new_ids,['new1','new2'])
-        self.assertEqual([i['id'] for i in selected[:2]],new_ids)
+        self.assertEqual(len(p.dedupe([dict(id='a',url='https://example.org/a?utm_source=x',title='An example long title about an interesting thing'),dict(id='b',url='https://example.org/a',title='Same')])),1)
+    def test_candidate_plan_puts_unseen_articles_first_and_caps_inventory(self):
+        def article(i):return dict(id=i,url=f'https://example.org/{i}',title=f'Article {i}',sourceId='s'+str(int(i[1:])%5),publishedAt='2026-09-16T00:00:00Z',type='长文')
+        old=[article('a'+str(i)) for i in range(20)];new=[article('n'+str(i)) for i in range(100)]
+        selected,new_ids=p.candidate_plan(old+new,{'items':old},80)
+        self.assertEqual(len(selected),80);self.assertTrue(set(new_ids));self.assertTrue(all(i in {x['id'] for x in selected} for i in new_ids))
+        self.assertTrue(all(x['id'].startswith('n') for x in selected[:10]))
     def test_article_rejects_private_redirect(self):
         class Response:
             def __init__(self,*a,**k):

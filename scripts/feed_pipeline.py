@@ -4,6 +4,14 @@ ROOT=Path(__file__).resolve().parents[1];UTC=dt.timezone.utc
 BLOCK=re.compile(r'会员专享|付费阅读|订阅后阅读|付费专享|subscribe to (?:read|continue)|subscriber.only|premium.only|members.only|免费注册码|优惠码|赛博领鸡蛋|共送出|APOD Science|sponsored|giveaway|sweepstakes|media advisory|press conference|\bpodcast\b',re.I)
 TOPICS=[('人工智能',r'\bAI\b|artificial intelligence|人工智能|大模型'),('城市',r'architect|urban|cities|housing|建筑|城市'),('商业',r'business|econom|industr|market|商业|产业'),('写作',r'writ|literary|fiction|poet|写作|文学'),('摄影',r'photograph|illustrat|cinema|影像|摄影'),('心理',r'psycholog|emotion|mental|心理|情绪'),('历史',r'histor|ancient|medieval|archaeolog|历史'),('社会',r'societ|social|politic|communit|社会'),('自然',r'ecolog|forest|climate|animal|自然'),('科学',r'scien|research|math|physic|space|科学')]
 HINTS={'城市':'看看空间、制度与人的生活如何相互影响。','商业':'留意案例背后的激励与限制，找一个可以迁移的判断。','写作':'观察作者怎样组织材料，借一种表达或叙事方法。','摄影':'留意它怎样改变观看方式，找一个能亲自试的细节。','心理':'用一个不同解释检查自己的日常经验。','历史':'把熟悉的现象放进更长的时间里重新理解。','社会':'从具体人物与事件，观察更大的社会结构。','自然':'从一个物种或地方出发，打开不熟悉的生活世界。','科学':'留意研究真正回答了什么，以及还没有回答什么。','人工智能':'把技术可能性与实际使用条件放在一起看。'}
+def retention_days(kind):
+    if kind in ('书','纪录片','电影','剧集','想试'):return 3650
+    if kind=='新闻':return 14
+    if kind=='数据':return 45
+    return 180
+def within_retention(item,now):
+    date=parse_date(item.get('publishedAt'))
+    return bool(date and date<=now+dt.timedelta(hours=3) and (item.get('evergreen') or date>=now-dt.timedelta(days=retention_days(item.get('type')))))
 def iso(d):return d.astimezone(UTC).isoformat(timespec='seconds').replace('+00:00','Z')
 def parse_date(s):
     if not s:return None
@@ -40,10 +48,11 @@ def fetch(url):
     return p.stdout
 def lname(x):return x.rsplit('}',1)[-1]
 def field(e,names):return next((''.join(x.itertext()).strip() for x in e if lname(x.tag) in names),'')
-def parse_feed(data,s,now):
+def parse_feed(data,s,now,stats=None):
     if len(data)>3000000 or b'<!ENTITY' in data.upper():raise ValueError('不支持的 Feed')
-    root=ET.fromstring(data);result=[];allowed=set(s.get('allowedHosts',[]))|{urllib.parse.urlsplit(s['url']).hostname}
-    for e in [x for x in root.iter() if lname(x.tag) in ('entry','item')][:200]:
+    root=ET.fromstring(data);result=[];allowed=set(s.get('allowedHosts',[]))|{urllib.parse.urlsplit(s['url']).hostname};entries=[x for x in root.iter() if lname(x.tag) in ('entry','item')][:200]
+    if stats is not None:stats['raw']=stats.get('raw',0)+len(entries)
+    for e in entries:
         title=clean(field(e,('title',)),240);url=field(e,('link',));download=online=None
         for x in e:
             if lname(x.tag)=='link':
@@ -52,7 +61,9 @@ def parse_feed(data,s,now):
                 if x.get('rel')=='enclosure' and x.get('type')=='application/xhtml+xml':online=canonical(x.get('href',''),False)
         url=canonical(url or field(e,('guid','id')));date=parse_date(field(e,('published','pubDate','date')) or field(e,('updated',)));excerpt=clean(field(e,('description','summary')))
         if not title or not url or urllib.parse.urlsplit(url).hostname not in allowed or not date:continue
-        if not now-dt.timedelta(days=7)<=date<=now+dt.timedelta(hours=3):continue
+        if not now-dt.timedelta(days=retention_days(s['type']))<=date<=now+dt.timedelta(hours=3):
+            if stats is not None:stats['timeRejected']=stats.get('timeRejected',0)+1
+            continue
         if BLOCK.search(title+' '+excerpt) or any(part in url for part in ('/video/','/videos/','/podcast/')):continue
         author=clean(field(e,('creator','author')),160);rights='';kind='发布'
         if s['id']=='standard':
@@ -63,7 +74,7 @@ def parse_feed(data,s,now):
         else:download=online=None
         tags=[t for t,p in TOPICS if re.search(p,title+' '+excerpt,re.I)][:3] or ['社会']
         result.append(dict(id=hashlib.sha256(url.encode()).hexdigest()[:20],title=title,url=url,source=s['name'],sourceId=s['id'],publishedAt=iso(date),dateKind=kind,type=s['type'],tags=tags,excerpt=excerpt or s['desc'],excerptBasis='原始 Feed 简介' if excerpt else '来源定位提示（非正文总结）',language=s['language'],category=s['category'],tier=s['tier'],author=author,rights=rights,downloadUrl=download,onlineUrl=online,direction='know',reasonZh=HINTS[tags[0]]))
-    return sorted(result,key=lambda x:x['publishedAt'],reverse=True)[:8]
+    return sorted(result,key=lambda x:x['publishedAt'],reverse=True)[:12]
 def check_article(item,now):
     url=item['url']
     try:
@@ -112,24 +123,25 @@ def balanced(items,limit=40):
         for group in groups.values():
             if depth<len(group) and len(chosen)<limit:chosen.append(group[depth])
     return chosen[:limit]
-def candidate_plan(eligible,previous,limit=40):
+def candidate_plan(eligible,previous,limit=80):
     """Put genuinely unseen articles first, then fill with still-valid recent work."""
     previous_ids={i.get('id') for i in previous.get('items',[])}
-    new=[i for i in eligible if i.get('id') not in previous_ids and not i.get('evergreen')]
-    recent=[i for i in eligible if i.get('id') in previous_ids or i.get('evergreen')]
+    new=[i for i in eligible if i.get('id') not in previous_ids]
+    recent=[i for i in eligible if i.get('id') in previous_ids]
     chosen=dedupe(balanced(new,limit)+balanced(recent,limit))[:limit]
     chosen_ids={i['id'] for i in chosen}
     return chosen,[i['id'] for i in new if i['id'] in chosen_ids]
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--fixtures',type=Path);ap.add_argument('--skip-network-check',action='store_true');ap.add_argument('--no-translation',action='store_true');args=ap.parse_args()
-    now=dt.datetime.now(UTC);path=ROOT/'data/feed.json';previous=json.loads(path.read_text()) if path.exists() else {};sources=json.loads((ROOT/'sources.json').read_text());fresh=[];statuses=[]
+    now=dt.datetime.now(UTC);path=ROOT/'data/feed.json';previous=json.loads(path.read_text()) if path.exists() else {};sources=json.loads((ROOT/'sources.json').read_text());fresh=[];statuses=[];feed_stats={'raw':0,'timeRejected':0}
     def run(s):
-        try:return s,parse_feed((args.fixtures/(s['id']+'.xml')).read_bytes() if args.fixtures else fetch(s['feed']),s,now),None
-        except Exception:return s,[],'Feed 暂时不可用'
+        local={'raw':0,'timeRejected':0}
+        try:return s,parse_feed((args.fixtures/(s['id']+'.xml')).read_bytes() if args.fixtures else fetch(s['feed']),s,now,local),None,local
+        except Exception:return s,[],'Feed 暂时不可用',local
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-        for s,items,error in pool.map(run,[s for s in sources if s.get('mode')=='dynamic' and s.get('freePolicy')=='audited-open']):
-            fresh+=items;statuses.append(dict(id=s['id'],name=s['name'],ok=not error,accepted=len(items),message=error or 'Feed 可读取'))
-    allowed={s['id'] for s in sources if s.get('mode') in ('dynamic','curated')};old=[i for i in previous.get('items',[]) if i.get('sourceId') in allowed and parse_date(i.get('publishedAt')) and (i.get('evergreen') or parse_date(i['publishedAt'])>=now-dt.timedelta(days=7)) and not BLOCK.search(i.get('title','')+' '+i.get('excerpt',''))]
+        for s,items,error,local in pool.map(run,[s for s in sources if s.get('mode')=='dynamic' and s.get('freePolicy')=='audited-open']):
+            fresh+=items;feed_stats['raw']+=local['raw'];feed_stats['timeRejected']+=local['timeRejected'];statuses.append(dict(id=s['id'],name=s['name'],ok=not error,accepted=len(items),raw=local['raw'],timeRejected=local['timeRejected'],message=error or 'Feed 可读取'))
+    allowed={s['id'] for s in sources if s.get('mode') in ('dynamic','curated')};old=[i for i in previous.get('items',[]) if i.get('sourceId') in allowed and within_retention(i,now) and not BLOCK.search(i.get('title','')+' '+i.get('excerpt',''))]
     old=[i for i in old if i.get('evergreen') or not any(part in i['url'] for part in ('/video/','/videos/','/podcast/'))]
     curated=json.loads((ROOT/'curated.json').read_text()) if (ROOT/'curated.json').exists() else [];possible=dedupe(curated+fresh+old);checked=[];rejected=[]
     if args.skip_network_check:checked=possible
@@ -143,7 +155,7 @@ def main():
     reviewed=screen(dedupe(checked),sources)
     editorial_rejected=[{'id':i['id'],'score':i['editorial']['score'],'reasons':i['editorial']['reasons']} for i in reviewed if not i['editorial']['eligible']]
     eligible=sorted([i for i in reviewed if i['editorial']['eligible']],key=lambda i:i['editorial']['score'],reverse=True)
-    selected,new_item_ids=candidate_plan(eligible,previous,40)
+    selected,new_item_ids=candidate_plan(eligible,previous,80)
     print(f'逐篇编辑初筛：{len(eligible)} 通过，{len(editorial_rejected)} 不进入主推荐',flush=True)
     if not args.no_translation:
         from translate_metadata import localize
@@ -152,16 +164,17 @@ def main():
             print(f'中文生成暂不可用：{type(e).__name__}；保留已有中文内容',flush=True)
             cached={i['id']:i for i in old if i.get('titleZh') and i.get('excerptZh')}
             selected=[cached.get(i['id'],i) for i in selected]
-    selected=[i for i in selected if re.search(r'[\u4e00-\u9fff]',i.get('titleZh','')) and re.search(r'[\u4e00-\u9fff]',i.get('excerptZh',''))]
+    before_translation_filter=len(selected);selected=[i for i in selected if re.search(r'[\u4e00-\u9fff]',i.get('titleZh','')) and re.search(r'[\u4e00-\u9fff]',i.get('excerptZh',''))];translation_rejected=before_translation_filter-len(selected)
     selected_ids=[i['id'] for i in selected];new_item_ids=[i for i in new_item_ids if i in set(selected_ids)]
-    archive=screen(dedupe(selected+[i for i in old if i.get('titleZh') and i['id'] not in {x['id'] for x in rejected}])[:160],sources)
+    archive=screen(dedupe(selected+[i for i in old if i.get('titleZh') and i['id'] not in {x['id'] for x in rejected}])[:200],sources)
+    dynamic=[s for s in sources if s.get('mode')=='dynamic' and s.get('freePolicy')=='audited-open'];diagnostics=dict(dynamicSources=len(dynamic),successSources=sum(1 for x in statuses if x['ok']),failedSources=sum(1 for x in statuses if not x['ok']),rawCandidates=feed_stats['raw'],timeRejected=feed_stats['timeRejected'],linkRejected=len(rejected),editorialRejected=len(editorial_rejected),translationRejected=translation_rejected,existingInventory=len(old),newCandidates=len(new_item_ids),serverInventory=len(selected),clientHistoryExcluded=None,clientHistoryNote='浏览历史仅保存在用户浏览器，服务器运行无法读取；页面会显示本机可推荐数量')
     if len(selected)<8:
         if len(previous.get('items',[]))<8:raise SystemExit('未获得足够的中文且正文可访问内容，拒绝首次空发布')
         retained=screen([i for i in previous.get('items',[]) if i['id'] not in {x['id'] for x in rejected}],sources)
-        result={**previous,'items':retained,'lastGoodItems':retained,'candidateIds':[i['id'] for i in retained if i['editorial']['eligible']][:40],'attemptedAt':iso(now),'checkedAt':iso(now),'newItemIds':[],'stale':True,'statuses':statuses,'linkFailures':rejected,'sources':sources}
+        result={**previous,'items':retained,'lastGoodItems':retained,'candidateIds':[i['id'] for i in retained if i['editorial']['eligible']][:80],'attemptedAt':iso(now),'checkedAt':iso(now),'newItemIds':[],'stale':True,'statuses':statuses,'linkFailures':rejected,'sources':sources,'diagnostics':diagnostics}
     else:
-        generated=iso(dt.datetime.now(UTC));content_updated=generated if new_item_ids else previous.get('contentUpdatedAt',previous.get('generatedAt',generated));result=dict(schemaVersion=2,generatedAt=generated,attemptedAt=generated,checkedAt=generated,contentUpdatedAt=content_updated,batchId=hashlib.sha256(''.join(selected_ids).encode()).hexdigest()[:16],items=archive,candidateIds=selected_ids,newItemIds=new_item_ids,lastGoodItems=archive,sources=sources,statuses=statuses,linkFailures=rejected,stale=False)
+        generated=iso(dt.datetime.now(UTC));content_updated=generated if new_item_ids else previous.get('contentUpdatedAt',previous.get('generatedAt',generated));result=dict(schemaVersion=2,generatedAt=generated,attemptedAt=generated,checkedAt=generated,contentUpdatedAt=content_updated,batchId=hashlib.sha256(''.join(selected_ids).encode()).hexdigest()[:16],items=archive,candidateIds=selected_ids,newItemIds=new_item_ids,lastGoodItems=archive,sources=sources,statuses=statuses,linkFailures=rejected,diagnostics=diagnostics,stale=False)
     result['editorialVersion']=3;result['editorialRejected']=editorial_rejected;result.pop('lastGoodItems',None)
     path.parent.mkdir(exist_ok=True);tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(result,ensure_ascii=False,separators=(',',':')));os.replace(tmp,path)
-    print(json.dumps({'generatedAt':result['generatedAt'],'newItems':len(result.get('newItemIds',[])),'items':len(result['items']),'candidates':len(result.get('candidateIds',[])),'articleChecksPassed':len(checked),'rejected':len(rejected),'stale':result['stale']},ensure_ascii=False))
+    print(json.dumps({'generatedAt':result['generatedAt'],'newItems':len(result.get('newItemIds',[])),'items':len(result['items']),'candidates':len(result.get('candidateIds',[])),'articleChecksPassed':len(checked),'stale':result['stale'],'diagnostics':diagnostics},ensure_ascii=False))
 if __name__=='__main__':main()
