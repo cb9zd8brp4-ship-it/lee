@@ -19,13 +19,19 @@ class PipelineTests(unittest.TestCase):
         source=dict(id='example',name='Example',url='https://example.org',type='长文',language='EN',category='科技与未来',tier='core',desc='desc')
         stats={'raw':0,'timeRejected':0};items=p.parse_feed(xml,source,now,stats)
         self.assertEqual([i['title'] for i in items],['Recent long article']);self.assertEqual(stats['raw'],3);self.assertEqual(stats['timeRejected'],1)
+    def test_feed_keeps_more_than_twelve_items_per_source(self):
+        now=dt.datetime(2026,9,17,tzinfo=p.UTC)
+        rows=''.join(f'<item><title>Useful case study number {n}</title><link>https://example.org/a/{n}</link><pubDate>Wed, 16 Sep 2026 00:00:00 GMT</pubDate><description>A concrete public case with people and methods.</description></item>' for n in range(25))
+        source=dict(id='example',name='Example',url='https://example.org',type='案例',language='EN',category='商业与公司',tier='core',desc='desc',maxItems=30)
+        items=p.parse_feed(('<rss><channel>'+rows+'</channel></rss>').encode(),source,now)
+        self.assertEqual(len(items),25)
     def test_deduplication(self):
         self.assertEqual(len(p.dedupe([dict(id='a',url='https://example.org/a?utm_source=x',title='An example long title about an interesting thing'),dict(id='b',url='https://example.org/a',title='Same')])),1)
     def test_candidate_plan_puts_unseen_articles_first_and_caps_inventory(self):
         def article(i):return dict(id=i,url=f'https://example.org/{i}',title=f'Article {i}',sourceId='s'+str(int(i[1:])%5),publishedAt='2026-09-16T00:00:00Z',type='长文')
-        old=[article('a'+str(i)) for i in range(20)];new=[article('n'+str(i)) for i in range(100)]
-        selected,new_ids=p.candidate_plan(old+new,{'items':old},80)
-        self.assertEqual(len(selected),80);self.assertTrue(set(new_ids));self.assertTrue(all(i in {x['id'] for x in selected} for i in new_ids))
+        old=[article('a'+str(i)) for i in range(20)];new=[article('n'+str(i)) for i in range(300)]
+        selected,new_ids=p.candidate_plan(old+new,{'items':old})
+        self.assertEqual(len(selected),240);self.assertTrue(set(new_ids));self.assertTrue(all(i in {x['id'] for x in selected} for i in new_ids))
         self.assertTrue(all(x['id'].startswith('n') for x in selected[:10]))
     def test_article_rejects_private_redirect(self):
         class Response:

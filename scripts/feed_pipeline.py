@@ -74,7 +74,7 @@ def parse_feed(data,s,now,stats=None):
         else:download=online=None
         tags=[t for t,p in TOPICS if re.search(p,title+' '+excerpt,re.I)][:3] or ['社会']
         result.append(dict(id=hashlib.sha256(url.encode()).hexdigest()[:20],title=title,url=url,source=s['name'],sourceId=s['id'],publishedAt=iso(date),dateKind=kind,type=s['type'],tags=tags,excerpt=excerpt or s['desc'],excerptBasis='原始 Feed 简介' if excerpt else '来源定位提示（非正文总结）',language=s['language'],category=s['category'],tier=s['tier'],author=author,rights=rights,downloadUrl=download,onlineUrl=online,direction='know',reasonZh=HINTS[tags[0]]))
-    return sorted(result,key=lambda x:x['publishedAt'],reverse=True)[:12]
+    return sorted(result,key=lambda x:x['publishedAt'],reverse=True)[:int(s.get('maxItems',30))]
 def check_article(item,now):
     url=item['url']
     try:
@@ -115,15 +115,15 @@ def dedupe(items):
         if u in urls or any(t==s or (len(t)>24 and difflib.SequenceMatcher(None,t,s).ratio()>.94) for s in titles):continue
         urls.add(u);titles.append(t);out.append(i)
     return out
-def balanced(items,limit=40):
-    chosen=[x for x in items if x.get('evergreen')][:4]+[x for x in items if x['type']=='书'][:2];groups={}
+def balanced(items,limit=240):
+    chosen=[x for x in items if x.get('evergreen')][:20]+[x for x in items if x['type']=='书'][:20];groups={}
     for i in items:
         if i['id'] not in {x['id'] for x in chosen}:groups.setdefault(i['sourceId'],[]).append(i)
-    for depth in range(20):
+    for depth in range(60):
         for group in groups.values():
             if depth<len(group) and len(chosen)<limit:chosen.append(group[depth])
     return chosen[:limit]
-def candidate_plan(eligible,previous,limit=80):
+def candidate_plan(eligible,previous,limit=240):
     """Put genuinely unseen articles first, then fill with still-valid recent work."""
     previous_ids={i.get('id') for i in previous.get('items',[])}
     new=[i for i in eligible if i.get('id') not in previous_ids]
@@ -155,23 +155,27 @@ def main():
     reviewed=screen(dedupe(checked),sources)
     editorial_rejected=[{'id':i['id'],'score':i['editorial']['score'],'reasons':i['editorial']['reasons']} for i in reviewed if not i['editorial']['eligible']]
     eligible=sorted([i for i in reviewed if i['editorial']['eligible']],key=lambda i:i['editorial']['score'],reverse=True)
-    selected,new_item_ids=candidate_plan(eligible,previous,80)
+    selected,new_item_ids=candidate_plan(eligible,previous,240)
     print(f'逐篇编辑初筛：{len(eligible)} 通过，{len(editorial_rejected)} 不进入主推荐',flush=True)
+    for i in selected:
+        if i.get('language')=='ZH' or (re.search(r'[\u4e00-\u9fff]',i.get('title','')) and re.search(r'[\u4e00-\u9fff]',i.get('excerpt',''))):
+            i.update(titleZh=i['title'],excerptZh=i['excerpt'],translationBasis=i.get('excerptBasis','中文来源介绍'))
     if not args.no_translation:
         from translate_metadata import localize
         try:selected=localize(selected,previous,ROOT)
         except Exception as e:
             print(f'中文生成暂不可用：{type(e).__name__}；保留已有中文内容',flush=True)
             cached={i['id']:i for i in old if i.get('titleZh') and i.get('excerptZh')}
-            selected=[cached.get(i['id'],i) for i in selected]
+            selected=[i if i.get('titleZh') and i.get('excerptZh') else cached.get(i['id'],i) for i in selected]
     before_translation_filter=len(selected);selected=[i for i in selected if re.search(r'[\u4e00-\u9fff]',i.get('titleZh','')) and re.search(r'[\u4e00-\u9fff]',i.get('excerptZh',''))];translation_rejected=before_translation_filter-len(selected)
     selected_ids=[i['id'] for i in selected];new_item_ids=[i for i in new_item_ids if i in set(selected_ids)]
-    archive=screen(dedupe(selected+[i for i in old if i.get('titleZh') and i['id'] not in {x['id'] for x in rejected}])[:200],sources)
-    dynamic=[s for s in sources if s.get('mode')=='dynamic' and s.get('freePolicy')=='audited-open'];diagnostics=dict(dynamicSources=len(dynamic),successSources=sum(1 for x in statuses if x['ok']),failedSources=sum(1 for x in statuses if not x['ok']),rawCandidates=feed_stats['raw'],timeRejected=feed_stats['timeRejected'],linkRejected=len(rejected),editorialRejected=len(editorial_rejected),translationRejected=translation_rejected,existingInventory=len(old),newCandidates=len(new_item_ids),serverInventory=len(selected),clientHistoryExcluded=None,clientHistoryNote='浏览历史仅保存在用户浏览器，服务器运行无法读取；页面会显示本机可推荐数量')
-    if len(selected)<8:
-        if len(previous.get('items',[]))<8:raise SystemExit('未获得足够的中文且正文可访问内容，拒绝首次空发布')
+    archive=screen(dedupe(selected+[i for i in old if i.get('titleZh') and i['id'] not in {x['id'] for x in rejected}])[:300],sources)
+    paywall_rejected=sum(1 for x in rejected if re.search(r'付费|限制|订阅|会员',x['reason']))
+    dynamic=[s for s in sources if s.get('mode')=='dynamic' and s.get('freePolicy')=='audited-open'];diagnostics=dict(dynamicSources=len(dynamic),successSources=sum(1 for x in statuses if x['ok']),failedSources=sum(1 for x in statuses if not x['ok']),rawCandidates=feed_stats['raw'],timeRejected=feed_stats['timeRejected'],linkRejected=len(rejected),linkUnavailableRejected=len(rejected)-paywall_rejected,paywallRejected=paywall_rejected,editorialRejected=len(editorial_rejected),qualityRejected=len(editorial_rejected),translationRejected=translation_rejected,existingInventory=len(old),newCandidates=len(new_item_ids),serverInventory=len(selected),clientHistoryExcluded=None,clientHistoryNote='浏览历史仅保存在用户浏览器，服务器运行无法读取；页面会显示本机的历史排除、冷却与未接触库存')
+    if not selected:
+        if not previous.get('items'):raise SystemExit('未获得可用内容，拒绝首次空发布')
         retained=screen([i for i in previous.get('items',[]) if i['id'] not in {x['id'] for x in rejected}],sources)
-        result={**previous,'items':retained,'lastGoodItems':retained,'candidateIds':[i['id'] for i in retained if i['editorial']['eligible']][:80],'attemptedAt':iso(now),'checkedAt':iso(now),'newItemIds':[],'stale':True,'statuses':statuses,'linkFailures':rejected,'sources':sources,'diagnostics':diagnostics}
+        result={**previous,'items':retained,'lastGoodItems':retained,'candidateIds':[i['id'] for i in retained if i['editorial']['eligible']][:240],'attemptedAt':iso(now),'checkedAt':iso(now),'newItemIds':[],'stale':True,'statuses':statuses,'linkFailures':rejected,'sources':sources,'diagnostics':diagnostics}
     else:
         generated=iso(dt.datetime.now(UTC));content_updated=generated if new_item_ids else previous.get('contentUpdatedAt',previous.get('generatedAt',generated));result=dict(schemaVersion=2,generatedAt=generated,attemptedAt=generated,checkedAt=generated,contentUpdatedAt=content_updated,batchId=hashlib.sha256(''.join(selected_ids).encode()).hexdigest()[:16],items=archive,candidateIds=selected_ids,newItemIds=new_item_ids,lastGoodItems=archive,sources=sources,statuses=statuses,linkFailures=rejected,diagnostics=diagnostics,stale=False)
     result['editorialVersion']=3;result['editorialRejected']=editorial_rejected;result.pop('lastGoodItems',None)

@@ -20,6 +20,21 @@ test('每天首次固定出现 8 条，同一天候选池更新不会替换卡�
   C.ensureDaily(s,{...f,batchId:'later',items:[extra,...f.items],candidateIds:['new',...f.candidateIds],newItemIds:['new']},{now:now+6*3600000});
   assert.deepEqual(s.daily.cards,first);
 });
+test('旧版同日不足 8 条时补足入口并保留原卡片',()=>{
+  const s=C.blank(),f=fixture(),kept=['i00','i01'];
+  s.daily={date:C.dayKey(now),cards:[...kept],shownIds:[...kept]};
+  C.ensureDaily(s,f,{now});
+  assert.equal(s.daily.cards.length,8);assert.equal(s.daily.shownIds.length,8);
+  assert.deepEqual(s.daily.cards.slice(0,2),kept);
+});
+test('候选不足时不会绕过历史冷却强行补满',()=>{
+  const s=C.blank(),f=fixture(10),kept=['i00','i01'];
+  for(const i of f.items.slice(2))s.history[i.id]={id:i.id,firstShownAt:new Date(now-86400000).toISOString(),lastShownAt:new Date(now-86400000).toISOString(),lastActionAt:'',status:'shown',shownCount:1,item:i};
+  s.daily={date:C.dayKey(now),cards:[...kept],shownIds:[...kept]};
+  C.ensureDaily(s,f,{now});
+  assert.deepEqual(s.daily.cards,kept);assert.equal(s.daily.shownIds.length,2);
+  assert.equal(C.pool(s,f,now).length,0);
+});
 test('处理当前卡片会移走并有限补位，点开和明确反馈永久排除',()=>{
   const s=C.blank(),f=fixture();C.ensureDaily(s,f,{now});const opened=f.items.find(i=>i.id===s.daily.cards[0]);
   const next=C.handle(s,f,opened,'opened',{now:now+1000});
@@ -51,12 +66,21 @@ test('后台新增内容只在处理当前卡片后的补位中生效',()=>{
   const current=f.items.find(x=>x.id===s.daily.cards[0]),replacement=C.handle(s,updated,current,'opened',{now:now+3600001});
   assert.equal(replacement.id,'fresh');assert(s.daily.cards.includes('fresh'));
 });
-test('三天模拟：每日 8 条互不重复，只展示内容进入冷却',()=>{
-  const s=C.blank(),f=fixture(),days=[];
-  for(let d=0;d<3;d++){C.ensureDaily(s,f,{now:now+d*86400000});days.push([...s.daily.cards]);}
-  const all=days.flat();assert.equal(days[0].length,8);assert.equal(days[1].length,8);assert.equal(days[2].length,8);
-  assert.equal(new Set(all).size,24);assert.equal(C.historyList(s).length,24);
-  console.log('三天模拟',days.map((ids,n)=>({day:n+1,count:ids.length,ids})));
+test('三天模拟：处理内容永久退出，只展示与换一个进入冷却，新候选可继续补充',()=>{
+  const s=C.blank(),f=fixture(14);C.ensureDaily(s,f,{now});const day1=[...s.daily.cards];
+  const statuses=['opened','favorite','disliked','swapped'];
+  for(let n=0;n<4;n++){const i=f.items.find(x=>x.id===day1[n]);C.handle(s,f,i,statuses[n],{now:now+n+1})}
+  assert.equal(s.daily.shownIds.length,12);const allDay1=[...s.daily.shownIds];
+  C.ensureDaily(s,f,{now:now+86400000});const day2=[...s.daily.cards];
+  assert.equal(day2.length,2);assert(day2.every(id=>!allDay1.includes(id)));
+  assert(!day2.some(id=>day1.includes(id)));
+  const injected=fixture(3).items.map((i,n)=>C.item({...i,id:'day3-'+n,url:'https://example.org/day3/'+n,titleZh:'第三天新增 '+n}));
+  const f3={...f,items:[...injected,...f.items],candidateIds:[...injected.map(i=>i.id),...f.candidateIds],newItemIds:injected.map(i=>i.id)};
+  C.ensureDaily(s,f3,{now:now+2*86400000});const day3=[...s.daily.cards];
+  assert.deepEqual(new Set(day3),new Set(injected.map(i=>i.id)));
+  for(const id of day1.slice(0,3))assert(!C.pool(s,f3,now+100*86400000).some(i=>i.id===id));
+  assert(!day3.some(id=>allDay1.includes(id)||day2.includes(id)));
+  console.log('三天模拟',JSON.stringify({day1:allDay1,day2,day3,finalStatuses:Object.fromEntries(day1.slice(0,4).map(id=>[id,s.history[id].status]))}));
 });
 test('浏览记录保存内容快照、状态、出现次数并可备份恢复',()=>{
   const s=C.blank(),f=fixture();C.ensureDaily(s,f,{now});const i=f.items.find(x=>x.id===s.daily.cards[0]);
@@ -82,9 +106,18 @@ test('来源屏蔽与海外开关作用于真实候选池',()=>{
   const s=C.blank(),f=fixture();s.sourcePrefs.s0='blocked';assert(C.pool(s,f,now).every(i=>i.sourceId!=='s0'));
   s.prefs.includeOverseas=false;assert.equal(C.pool(s,f,now).length,0);
 });
-test('旧版已看和收藏数据可迁移，危险链接被拒绝',()=>{
-  const v2={version:2,notes:[],custom:[],favorites:[],feedback:{},sourcePrefs:{},availability:{},prefs:{includeOverseas:true},seen:{i00:{count:1,opened:true,at:new Date(now).toISOString()}}};
-  const migrated=C.validate(v2);assert.equal(migrated.history.i00.status,'opened');assert.equal(C.safeUrl('javascript:alert(1)'),null);
+test('旧版点开、反馈和收藏全部迁移为永久退出状态',()=>{
+  const f=fixture(),saved={...f.items[3],savedAt:new Date(now).toISOString(),note:'',status:'未读'};
+  const v2={version:2,notes:[],custom:[],favorites:[saved],feedback:{i01:{value:1,tags:['科学'],sourceId:'s1',at:new Date(now).toISOString()},i02:{value:-1,tags:['生活'],sourceId:'s2',at:new Date(now).toISOString()}},sourcePrefs:{},availability:{},prefs:{includeOverseas:true},seen:{i00:{count:1,opened:true,at:new Date(now).toISOString()},i01:{count:1,opened:false,at:new Date(now).toISOString()},i02:{count:1,opened:false,at:new Date(now).toISOString()},i03:{count:1,opened:false,at:new Date(now).toISOString()}}};
+  const migrated=C.validate(v2);assert.deepEqual(['opened','liked','disliked','favorite'].map((x,n)=>migrated.history['i0'+n].status),['opened','liked','disliked','favorite']);
+  for(const id of ['i00','i01','i02','i03'])assert(!C.pool(migrated,f,now+100*86400000).some(i=>i.id===id));
+  assert.equal(C.safeUrl('javascript:alert(1)'),null);
+});
+test('库存诊断区分未接触、已处理和冷却内容',()=>{
+  const s=C.blank(),f=fixture(6),at=new Date(now-86400000).toISOString();
+  s.history.i00={id:'i00',firstShownAt:at,lastShownAt:at,lastActionAt:at,status:'opened',shownCount:1,item:f.items[0]};
+  s.history.i01={id:'i01',firstShownAt:at,lastShownAt:at,lastActionAt:'',status:'shown',shownCount:1,item:f.items[1]};
+  const d=C.inventoryDiagnostics(s,f,now);assert.equal(d.processedExcluded,1);assert.equal(d.cooling,1);assert.equal(d.unseenRecommendable,4);assert.equal(d.recommendable,4);
 });
 test('复制给 Chat 的提示保留上下文并要求说明不确定性',()=>{
   const f=fixture(),quote={...f.items[4],type:'摘录',quote:'让我停下的一段话'};
