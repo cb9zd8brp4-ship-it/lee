@@ -1,6 +1,9 @@
 name: Lee 云端更新检查与补跑
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/watchdog.yml', 'scripts/watchdog.py']
   schedule:
     # 08:42 / 17:42 and a second check at 09:12 / 18:12 Beijing time.
     - cron: '42 0,9 * * *'
