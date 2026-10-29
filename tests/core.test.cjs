@@ -7,7 +7,7 @@ function fixture(count=50){
     excerptZh:'这是第 '+n+' 条简体中文简介。',url:'https://example.org/a/'+n,source:'来源'+n%10,sourceId:'s'+n%10,
     publishedAt:'2026-09-12T01:00:00Z',type:n===0?'书':n===1?'纪录片':n===2?'新闻':'长文',
     direction:'know',tier:n%3===0?'explore':'core',evergreen:n===0,
-    editorial:{version:3,eligible:true,score:8+(n%4)/10,exploration:n%3===0},
+    editorial:{version:4,eligible:true,score:8+(n%4)/10,exploration:n%3===0,lane:n%3===0?'wildcard':'core'},
     viewingAccess:n===1?{mode:'zh-Hans',evidenceUrl:'https://example.org/subtitles',verifiedAt:'2026-09-12T00:00:00Z'}:{},
     tags:[n%2?'生活':'科学'],rights:n===0?'公共领域':'',downloadUrl:n===0?'https://example.org/a.epub':null
   }));
@@ -35,11 +35,14 @@ test('候选不足时不会绕过历史冷却强行补满',()=>{
   assert.deepEqual(s.daily.cards,kept);assert.equal(s.daily.shownIds.length,2);
   assert.equal(C.pool(s,f,now).length,0);
 });
-test('处理当前卡片会移走并有限补位，点开和明确反馈永久排除',()=>{
+test('点开保留卡片，看完后移走并有限补位，明确反馈永久排除',()=>{
   const s=C.blank(),f=fixture();C.ensureDaily(s,f,{now});const opened=f.items.find(i=>i.id===s.daily.cards[0]);
   const next=C.handle(s,f,opened,'opened',{now:now+1000});
-  assert(next);assert.equal(s.daily.cards.length,8);assert.equal(s.daily.shownIds.length,9);assert(!s.daily.cards.includes(opened.id));
+  assert.equal(next,null);assert.equal(s.daily.cards.length,8);assert.equal(s.daily.shownIds.length,8);assert(s.daily.cards.includes(opened.id));
   assert.equal(s.history[opened.id].status,'opened');
+  assert(!C.historyEligible(s,opened,now+100*86400000));
+  const replacement=C.handle(s,f,opened,'done',{now:now+1500});
+  assert(replacement);assert.equal(s.daily.shownIds.length,9);assert(!s.daily.cards.includes(opened.id));
   for(const status of ['liked','neutral','disliked']){
     const i=f.items.find(x=>x.id===s.daily.cards[0]);C.handle(s,f,i,status,{now:now+2000});
     assert.equal(s.history[i.id].status,status);assert(!C.pool(s,f,now+100*86400000).some(x=>x.id===i.id));
@@ -47,9 +50,9 @@ test('处理当前卡片会移走并有限补位，点开和明确反馈永久�
 });
 test('每日最多 12 个入口，额度用完后页面从 8 条逐步缩到 0',()=>{
   const s=C.blank(),f=fixture();C.ensureDaily(s,f,{now});
-  for(let n=0;n<4;n++){const i=f.items.find(x=>x.id===s.daily.cards[0]);C.handle(s,f,i,'opened',{now:now+n+1})}
+  for(let n=0;n<4;n++){const i=f.items.find(x=>x.id===s.daily.cards[0]);C.handle(s,f,i,'done',{now:now+n+1})}
   assert.equal(s.daily.shownIds.length,12);assert.equal(s.daily.cards.length,8);
-  while(s.daily.cards.length){const i=f.items.find(x=>x.id===s.daily.cards[0]);C.handle(s,f,i,'opened',{now:now+100})}
+  while(s.daily.cards.length){const i=f.items.find(x=>x.id===s.daily.cards[0]);C.handle(s,f,i,'done',{now:now+100})}
   assert.equal(s.daily.cards.length,0);assert.equal(s.daily.shownIds.length,12);
 });
 test('换掉不改变兴趣并进入冷却，冷却后可以重新候选',()=>{
@@ -58,21 +61,41 @@ test('换掉不改变兴趣并进入冷却，冷却后可以重新候选',()=>{
   assert(!C.pool(s,f,now+6*86400000).some(x=>x.id===i.id));
   s.daily=null;assert(C.pool(s,f,now+8*86400000).some(x=>x.id===i.id));
 });
+test('仅展示内容分别冷却 7、21、60 天',()=>{
+  const s=C.blank(),i=fixture().items[4],at=new Date(now).toISOString();
+  for(const [count,days] of [[1,7],[2,21],[3,60]]){
+    s.history[i.id]={id:i.id,firstShownAt:at,lastShownAt:at,lastActionAt:'',status:'shown',shownCount:count,item:i};
+    assert.equal(C.historyEligible(s,i,now+(days-1)*86400000),false);
+    assert.equal(C.historyEligible(s,i,now+days*86400000),true);
+  }
+});
+test('打开后换掉或打不开仍永久退出；历史终态再打开不会降级',()=>{
+  for(const action of ['swapped','unavailable']){
+    const s=C.blank(),f=fixture();C.ensureDaily(s,f,{now});const i=f.items.find(x=>x.id===s.daily.cards[0]);
+    C.handle(s,f,i,'opened',{now:now+1});C.handle(s,f,i,action,{now:now+2});
+    assert.equal(s.history[i.id].status,'opened');assert(!C.historyEligible(s,i,now+100*86400000));
+  }
+  for(const status of ['favorite','liked','neutral','disliked','done']){
+    const s=C.blank(),f=fixture();C.ensureDaily(s,f,{now});const i=f.items.find(x=>x.id===s.daily.cards[0]);
+    C.handle(s,f,i,status,{now:now+1});C.handle(s,f,i,'opened',{now:now+2});
+    assert.equal(s.history[i.id].status,status);assert(!C.historyEligible(s,i,now+100*86400000));
+  }
+});
 test('后台新增内容只在处理当前卡片后的补位中生效',()=>{
   const s=C.blank(),f=fixture();C.ensureDaily(s,f,{now});const first=[...s.daily.cards];
-  const fresh=C.item({...f.items[10],id:'fresh',url:'https://example.org/fresh',title:'Fresh',titleZh:'刚进入候选池'});
+  const fresh=C.item({...f.items[10],id:'fresh',url:'https://example.org/fresh',title:'Fresh',titleZh:'刚进入候选池',editorial:{version:4,eligible:true,score:12}});
   const updated={...f,items:[fresh,...f.items],candidateIds:['fresh',...f.candidateIds],newItemIds:['fresh']};
   C.ensureDaily(s,updated,{now:now+3600000});assert.deepEqual(s.daily.cards,first);
-  const current=f.items.find(x=>x.id===s.daily.cards[0]),replacement=C.handle(s,updated,current,'opened',{now:now+3600001});
+  const current=f.items.find(x=>x.id===s.daily.cards[0]),replacement=C.handle(s,updated,current,'done',{now:now+3600001});
   assert.equal(replacement.id,'fresh');assert(s.daily.cards.includes('fresh'));
 });
 test('三天模拟：处理内容永久退出，只展示与换一个进入冷却，新候选可继续补充',()=>{
   const s=C.blank(),f=fixture(14);C.ensureDaily(s,f,{now});const day1=[...s.daily.cards];
   const statuses=['opened','favorite','disliked','swapped'];
   for(let n=0;n<4;n++){const i=f.items.find(x=>x.id===day1[n]);C.handle(s,f,i,statuses[n],{now:now+n+1})}
-  assert.equal(s.daily.shownIds.length,12);const allDay1=[...s.daily.shownIds];
+  assert.equal(s.daily.shownIds.length,11);const allDay1=[...s.daily.shownIds];
   C.ensureDaily(s,f,{now:now+86400000});const day2=[...s.daily.cards];
-  assert.equal(day2.length,2);assert(day2.every(id=>!allDay1.includes(id)));
+  assert.equal(day2.length,3);assert(day2.every(id=>!allDay1.includes(id)));
   assert(!day2.some(id=>day1.includes(id)));
   const injected=fixture(3).items.map((i,n)=>C.item({...i,id:'day3-'+n,url:'https://example.org/day3/'+n,titleZh:'第三天新增 '+n}));
   const f3={...f,items:[...injected,...f.items],candidateIds:[...injected.map(i=>i.id),...f.candidateIds],newItemIds:injected.map(i=>i.id)};
@@ -123,4 +146,6 @@ test('复制给 Chat 的提示保留上下文并要求说明不确定性',()=>{
   const f=fixture(),quote={...f.items[4],type:'摘录',quote:'让我停下的一段话'};
   assert(C.articlePrompt(quote).includes(quote.quote));assert(C.articlePrompt(f.items[1]).includes('不要剧透'));
   assert(C.articlePrompt(f.items[0]).includes('试读'));assert(C.articlePrompt(f.items[4]).includes('不要编造'));
+  const short=C.selectionPrompt(f.items[4],'机会成本'),long=C.selectionPrompt(f.items[4],'这是一句需要结合文章背景解释的较长内容，它提出了一个值得进一步讨论的判断。');
+  assert(short.includes('机会成本'));assert(short.includes('具体例子'));assert(short.includes(f.items[4].url));assert(long.includes('反例'));
 });

@@ -8,6 +8,6 @@ try:
     candidate=json.loads(p.stdout);old=json.loads(path.read_text())
     assert candidate['schemaVersion']==2 and len(candidate['items'])>=8
     assert all(i.get('titleZh') and i.get('excerptZh') for i in candidate['items'])
-    if candidate['generatedAt']>old['generatedAt']:path.write_text(json.dumps(candidate,ensure_ascii=False,separators=(',',':')))
+    if candidate['generatedAt']>old['generatedAt'] or not old.get('items'):path.write_text(json.dumps(candidate,ensure_ascii=False,separators=(',',':')))
     print('已恢复公开内容缓存')
 except Exception:print('未取得更新的在线缓存，使用项目内最后成功快照')

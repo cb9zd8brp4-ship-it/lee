@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "core": [
+    {"name": "个人经营与小生意", "patterns": ["small business", "independent business", "business model", "creator economy", "solo business", "个人经营", "小生意", "个体商业", "商业模式", "创作者经济"]},
+    {"name": "内容表达与创作方法", "patterns": ["writing practice", "storytelling", "editorial process", "photography practice", "visual narrative", "写作方法", "内容创作", "叙事方法", "摄影实践", "表达方法"]},
+    {"name": "真实案例与职业路径", "patterns": ["case study", "how I built", "independent career", "career change", "studio practice", "案例研究", "职业转型", "工作室经营", "自由职业", "独立职业"]},
+    {"name": "城市生活与具体空间", "patterns": ["third place", "street design", "public space", "adaptive reuse", "neighborhood", "第三空间", "街道设计", "公共空间", "社区营造", "城市更新"]},
+    {"name": "现实中的人工智能", "patterns": ["AI workflow", "AI at work", "AI classroom", "AI agent", "AI automation", "artificial intelligence business", "AI 工作流", "人工智能应用", "人工智能与工作", "人工智能与创作", "智能体", "自动化工作流"]},
+    {"name": "生活路径与个人选择", "patterns": ["career change", "changed her life", "changed his life", "changing careers", "life choices", "职业转型", "改变生活", "生活选择", "重新安排工作"]},
+    {"name": "地方与人物故事", "patterns": ["local life", "local people", "travel writing", "unusual profession", "people who work", "地方生活", "当地人", "旅行故事", "陌生职业", "人物故事"]},
+    {"name": "创作者与影像", "patterns": ["independent creator", "documentary filmmaker", "video creator", "personal brand", "独立创作者", "个人IP", "纪录片创作", "影像叙事", "自媒体"]}
+  ],
+  "adjacent": [
+    {"name": "地方经验与手艺", "patterns": ["craft tradition", "local culture", "artisan", "material culture", "地方经验", "手工艺", "地方文化", "材料文化"]},
+    {"name": "设计与观察方法", "patterns": ["design process", "observation method", "field notes", "visual thinking", "设计过程", "观察方法", "田野记录", "视觉思考"]},
+    {"name": "社会规则的具体影响", "patterns": ["community practice", "workplace culture", "social norm", "institutional design", "社区实践", "职场文化", "社会规则", "制度设计"]},
+    {"name": "饮食与移动生活", "patterns": ["coffee culture", "food culture", "driving experience", "mobile living", "咖啡文化", "饮食文化", "汽车生活", "移动生活"]},
+    {"name": "真实使用体验", "patterns": ["real world use", "hands-on experience", "personal workflow", "真实使用体验", "实际体验", "个人工作流"]}
+  ],
+  "wildcard": [
+    {"name": "陌生行业的内部机制", "patterns": ["behind the scenes", "supply chain", "hidden industry", "how the industry works", "幕后机制", "供应链", "行业如何运作"]},
+    {"name": "反常识但可验证", "patterns": ["counterintuitive", "unexpected finding", "field experiment", "natural experiment", "反常识", "意外发现", "田野实验", "自然实验"]}
+  ],
+  "negative": [
+    {"name": "泛科学快讯", "weight": 2.2, "patterns": ["new study finds", "researchers discover", "scientists reveal", "研究人员发现", "科学家发现"]},
+    {"name": "航天与天文日常新闻", "weight": 2.8, "patterns": ["NASA mission", "spacecraft", "astronaut candidate", "galaxy", "exoplanet", "asteroid", "宇航员", "航天器", "星系", "系外行星"]},
+    {"name": "疾病与医学快讯", "weight": 3.0, "patterns": ["disease", "cancer", "virus", "bacteria", "clinical trial", "pandemic", "疾病", "癌症", "病毒", "细菌", "临床试验", "疫情"]},
+    {"name": "软件版本与安全通报", "weight": 2.6, "patterns": ["release notes", "security patch", "vulnerability", "CVE-", "software update", "版本发布", "安全补丁", "漏洞修复"]},
+    {"name": "宣传与活动通知", "weight": 2.5, "patterns": ["announces", "press release", "register now", "webinar", "award ceremony", "宣布推出", "新闻稿", "立即报名", "网络研讨会"]},
+    {"name": "开发基础设施与泛 AI 快讯", "weight": 2.4, "patterns": ["devops", "server infrastructure", "kubernetes", "open source infrastructure", "AI model release", "data center", "服务器运维", "基础设施", "模型发布"]},
+    {"name": "促销与商品合集", "weight": 2.5, "patterns": ["buy now", "discount code", "best deals", "sponsored content", "优惠码", "促销", "装备合集", "广告推广", "正式发售", "现已发售", "限时免费", "首发折扣", "试玩版", "抽奖"]},
+    {"name": "游戏资讯与宣传", "weight": 3.5, "patterns": ["游戏", "Steam", "PlayStation", "Xbox", "Nintendo", "DLC", "电子游戏", "电玩"]}
+  ],
+  "sourceBias": {"sciencedaily": -1.4, "nasa": -1.0, "mit": -0.5, "solidot": -0.7, "sspai": 0.25, "appinn": 0.2, "wip": 0.4, "psyche": 0.2, "aeon": 0.15}
+}

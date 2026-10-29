@@ -1,0 +1,33 @@
+name: Lee 云端更新检查与补跑
+on:
+  workflow_dispatch:
+  schedule:
+    # 08:42 / 17:42 and a second check at 09:12 / 18:12 Beijing time.
+    - cron: '42 0,9 * * *'
+    - cron: '12 1,10 * * *'
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: lee-watchdog
+  cancel-in-progress: false
+jobs:
+  verify-and-recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: 检查线上内容，必要时补跑并验证部署
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/watchdog.py
+      - name: 记录更新状态
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ "$JOB_STATUS" = success ]; then
+            echo '线上内容已完成本时段更新并部署。' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '本轮更新或部署验证失败；线上继续保留最近一次成功内容。请查看此运行日志。' >> "$GITHUB_STEP_SUMMARY"
+          fi

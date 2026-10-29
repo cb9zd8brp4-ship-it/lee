@@ -174,11 +174,12 @@ def main():
     dynamic=[s for s in sources if s.get('mode')=='dynamic' and s.get('freePolicy')=='audited-open'];diagnostics=dict(dynamicSources=len(dynamic),successSources=sum(1 for x in statuses if x['ok']),failedSources=sum(1 for x in statuses if not x['ok']),rawCandidates=feed_stats['raw'],timeRejected=feed_stats['timeRejected'],linkRejected=len(rejected),linkUnavailableRejected=len(rejected)-paywall_rejected,paywallRejected=paywall_rejected,editorialRejected=len(editorial_rejected),qualityRejected=len(editorial_rejected),translationRejected=translation_rejected,existingInventory=len(old),newCandidates=len(new_item_ids),serverInventory=len(selected),clientHistoryExcluded=None,clientHistoryNote='浏览历史仅保存在用户浏览器，服务器运行无法读取；页面会显示本机的历史排除、冷却与未接触库存')
     if not selected:
         if not previous.get('items'):raise SystemExit('未获得可用内容，拒绝首次空发布')
-        retained=screen([i for i in previous.get('items',[]) if i['id'] not in {x['id'] for x in rejected}],sources)
+        # A widespread transient network failure must not erase the last good snapshot.
+        retained=screen(previous.get('items',[]),sources)
         result={**previous,'items':retained,'lastGoodItems':retained,'candidateIds':[i['id'] for i in retained if i['editorial']['eligible']][:240],'attemptedAt':iso(now),'checkedAt':iso(now),'newItemIds':[],'stale':True,'statuses':statuses,'linkFailures':rejected,'sources':sources,'diagnostics':diagnostics}
     else:
         generated=iso(dt.datetime.now(UTC));content_updated=generated if new_item_ids else previous.get('contentUpdatedAt',previous.get('generatedAt',generated));result=dict(schemaVersion=2,generatedAt=generated,attemptedAt=generated,checkedAt=generated,contentUpdatedAt=content_updated,batchId=hashlib.sha256(''.join(selected_ids).encode()).hexdigest()[:16],items=archive,candidateIds=selected_ids,newItemIds=new_item_ids,lastGoodItems=archive,sources=sources,statuses=statuses,linkFailures=rejected,diagnostics=diagnostics,stale=False)
-    result['editorialVersion']=3;result['editorialRejected']=editorial_rejected;result.pop('lastGoodItems',None)
+    result['editorialVersion']=4;result['editorialRejected']=editorial_rejected;result.pop('lastGoodItems',None)
     path.parent.mkdir(exist_ok=True);tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(result,ensure_ascii=False,separators=(',',':')));os.replace(tmp,path)
     print(json.dumps({'generatedAt':result['generatedAt'],'newItems':len(result.get('newItemIds',[])),'items':len(result['items']),'candidates':len(result.get('candidateIds',[])),'articleChecksPassed':len(checked),'stale':result['stale'],'diagnostics':diagnostics},ensure_ascii=False))
 if __name__=='__main__':main()

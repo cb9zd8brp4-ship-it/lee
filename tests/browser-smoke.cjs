@@ -1,0 +1,26 @@
+const {chromium}=require('/Users/Admin/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const assert=require('node:assert/strict');
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--no-sandbox']});
+ const context=await browser.newContext({permissions:['clipboard-read','clipboard-write']});
+ const page=await context.newPage();
+ await page.goto('http://127.0.0.1:8765/');
+ const cards=page.locator('#todayContent [data-card]');
+ assert.ok(await cards.count()>0,'需要至少一个候选以验证交互');
+ const first=cards.first(),id=await first.getAttribute('data-card');
+ await page.locator(`[data-card="${id}"] [data-open]`).evaluate(a=>a.addEventListener('click',e=>e.preventDefault(),{once:true}));
+ await page.locator(`[data-card="${id}"] [data-open]`).click();
+ await page.locator(`[data-card="${id}"] .opened-badge`).waitFor();
+ assert.equal(await page.locator(`[data-card="${id}"] .opened-badge`).count(),1);
+ const heading=page.locator(`[data-card="${id}"] h3`);
+ await heading.evaluate(el=>{const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);el.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));});
+ await page.waitForTimeout(300);
+ assert.equal(await page.locator('#selectionToolbar').isVisible(),true);
+ await page.locator('#selectionCopy').click();
+ const copied=await page.evaluate(()=>navigator.clipboard.readText());
+ assert.match(copied,/我选中了/);assert.match(copied,/来源：/);assert.match(copied,/链接：/);
+ await page.locator(`[data-card="${id}"] [data-done]`).click();
+ assert.equal(await page.locator(`#todayContent [data-card="${id}"]`).count(),0);
+ console.log('浏览器实测：打开后保留、圈选并复制结构化提示、看完收起通过');
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
