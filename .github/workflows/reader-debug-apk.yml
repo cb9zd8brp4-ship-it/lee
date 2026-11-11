@@ -50,9 +50,9 @@ jobs:
         working-directory: android-wrapper
         run: |
           npm install --no-audit --no-fund
+          npm run build:web
           test -s www/vendor/jszip.min.js
           test -s www/index.html
-          npm run build:web
           npx cap add android
           npx cap sync android
       - name: Build installable debug APK
