@@ -7,6 +7,34 @@ export const getSession=()=>localLoad(SESSION);
 export function setConfig(url,key){url=String(url||'').trim().replace(/\/$/,'');key=String(key||'').trim();if(url && (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)||!key))throw Error('请填写有效的 Supabase 项目 URL 与公开 Key');localStorage.setItem(SETTINGS,JSON.stringify({url,key}))}
 export function signOut(){localStorage.removeItem(SESSION)}
 async function req(endpoint,method='GET',body=null,auth=true,extras={}){const cfg=getConfig();if(!cfg.url||!cfg.key)throw Error('尚未配置私人同步服务');const s=auth?await ensureSession():null;const h={'apikey':cfg.key,'Content-Type':'application/json',...extras};if(s)h.Authorization=`Bearer ${s.access_token}`;const response=await fetch(cfg.url+endpoint,{method,headers:h,body:body===null?undefined:JSON.stringify(body)});let data=null;const raw=await response.text();if(raw){try{data=JSON.parse(raw)}catch{data=raw}}if(!response.ok){throw Error(data?.msg||data?.message||data?.error_description||`同步服务错误 HTTP ${response.status}`)}return data}
+/* Passwordless login: same mailbox may be used as ChatGPT; credentials are independent. */
+export async function sendEmailLogin(email){
+ email=String(email||'').trim().toLowerCase();
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error('请输入有效的邮箱');
+ await req('/auth/v1/otp','POST',{email,create_user:true},false);
+ return true;
+}
+export async function verifyEmailLogin(email,proof){
+ email=String(email||'').trim().toLowerCase(); proof=String(proof||'').trim();
+ if(!email||!proof)throw Error('请输入邮箱和邮件验证码，或粘贴邮件中的登录链接');
+ let params;
+ if(/^https:\/\//i.test(proof)){
+  let url;try{url=new URL(proof)}catch{throw Error('邮件链接格式不正确')}
+  const origin=new URL(getConfig().url);
+  if(url.origin!==origin.origin||url.pathname!=='/auth/v1/verify')throw Error('只能使用本 Lee Reader 项目发送的登录链接');
+  const token_hash=url.searchParams.get('token')||url.searchParams.get('token_hash');
+  if(!token_hash||token_hash.length>2000)throw Error('没有找到有效的邮件验证令牌');
+  params={token_hash,type:'email'};
+ }else{
+  if(!/^\d{6,8}$/.test(proof))throw Error('请输入邮件中的6位验证码；如收到链接，请复制完整链接粘贴');
+  params={email,token:proof,type:'email'};
+ }
+ const data=await req('/auth/v1/verify','POST',params,false);
+ if(!data?.user?.id||!data?.access_token||!data?.refresh_token)throw Error('邮箱验证未返回有效登录会话');
+ data.expires_at=Date.now()+Number(data.expires_in||3600)*1000;
+ localStorage.setItem(SESSION,JSON.stringify(data));
+ return data;
+}
 export async function signup(email,password){const data=await req('/auth/v1/signup','POST',{email,password},false);if(data?.access_token)localStorage.setItem(SESSION,JSON.stringify(data));return data}
 export async function signin(email,password){const data=await req('/auth/v1/token?grant_type=password','POST',{email,password},false);if(!data?.access_token||!data?.user?.id)throw Error('登录失败：服务器没有返回有效会话');data.expires_at=Date.now()+Number(data.expires_in||3600)*1000;localStorage.setItem(SESSION,JSON.stringify(data));return data}
 async function ensureSession(){let s=getSession();if(!s?.refresh_token)throw Error('请先登录个人账户');if(Date.now()<Number(s.expires_at||0)-90000)return s;const data=await req('/auth/v1/token?grant_type=refresh_token','POST',{refresh_token:s.refresh_token},false);if(!data?.access_token)throw Error('登录已失效，请重新登录');s={...s,...data,expires_at:Date.now()+Number(data.expires_in||3600)*1000};localStorage.setItem(SESSION,JSON.stringify(s));return s}
