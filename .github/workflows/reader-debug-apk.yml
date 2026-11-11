@@ -39,8 +39,12 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-      - uses: android-actions/setup-android@v3
+      - name: Use runner Android SDK
         if: steps.source.outputs.ready == 'yes'
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms"
       - name: Install Capacitor and bundle web assets
         if: steps.source.outputs.ready == 'yes'
         working-directory: android-wrapper
