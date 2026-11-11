@@ -32,7 +32,7 @@ jobs:
         if: steps.source.outputs.ready == 'yes'
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
       - uses: android-actions/setup-android@v3
         if: steps.source.outputs.ready == 'yes'
       - name: Install Capacitor and bundle web assets
@@ -40,6 +40,8 @@ jobs:
         working-directory: android-wrapper
         run: |
           npm install --no-audit --no-fund
+          test -s www/vendor/jszip.min.js
+          test -s www/index.html
           npm run build:web
           npx cap add android
           npx cap sync android
