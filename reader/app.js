@@ -1,5 +1,5 @@
 import {importFile,loadBook,saveBook,listLocalBooks,progressPercent} from './books.js';
-import {getConfig,getSession,setConfig,signin,signup,signOut,syncEvents,uploadCurrentBook,downloadCurrentBook} from './cloud.js';
+import {getConfig,getSession,setConfig,sendEmailLogin,verifyEmailLogin,signOut,syncEvents,uploadCurrentBook,downloadCurrentBook} from './cloud.js';
 const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const STATE_KEY='lee.reader.events.v1',DEVICE_KEY='lee.reader.device.v1',PREFS_KEY='lee.reader.prefs.v1';
 const ORIGINAL_HOME='https://cb9zd8brp4-ship-it.github.io/lee/';
@@ -125,8 +125,8 @@ function downloadJSON(obj,name){const blob=new Blob([JSON.stringify(obj,null,2)]
 $('#exportData').onclick=()=>downloadJSON({kind:'lee-reader-export',version:1,exportedAt:new Date().toISOString(),events},'Lee-Reader-个人数据备份.json');
 $('#exportJournal').onclick=()=>downloadJSON({kind:'lee-reader-journal',version:1,exportedAt:new Date().toISOString(),books:booksInfo(),progress:typed('progress:'),sessions:typed('session:'),articles:typed('history:'),discussions:typed('discussion:')},'Lee-Reader-阅读日志.json');
 $('#saveCloud').onclick=()=>{try{setConfig($('#cloudUrl').value,$('#cloudKey').value);toast('同步连接信息已保存到当前设备')}catch(e){toast(e.message)}};
-$('#signIn').onclick=async()=>{try{await signin($('#email').value,$('#password').value);$('#password').value='';$('#cloudMessage').textContent='登录成功，正在合并本地与云端历史…';await doSync();renderProfile()}catch(e){$('#cloudMessage').textContent=e.message}};
-$('#signUp').onclick=async()=>{try{await signup($('#email').value,$('#password').value);$('#password').value='';$('#cloudMessage').textContent='注册已提交；如果服务要求邮箱验证，请先查收邮件。'}catch(e){$('#cloudMessage').textContent=e.message}};
+$('#sendLoginEmail').onclick=async()=>{try{await sendEmailLogin($('#email').value);$('#cloudMessage').textContent='免密码登录邮件已发送。收到验证码就输入；如果是链接，请复制完整链接到输入框。'}catch(e){$('#cloudMessage').textContent='发送失败：'+e.message}};
+$('#verifyEmail').onclick=async()=>{try{await verifyEmailLogin($('#email').value,$('#emailCode').value);$('#emailCode').value='';$('#cloudMessage').textContent='邮箱验证成功，正在合并历史…';await doSync();renderProfile()}catch(e){$('#cloudMessage').textContent='验证失败：'+e.message}};
 $('#signOut').onclick=()=>{signOut();renderProfile();toast('已退出云同步，原有本地记录保留')};$('#syncNow').onclick=()=>doSync(true);
 $('#shareCurrentBook').onclick=async()=>{try{const recent=booksInfo().find(b=>latest('progress:'+b.__id))||booksInfo()[0];if(!recent)throw Error('书架尚无书籍');const b=await loadBook(recent.__id);if(!b)throw Error('本机没有这本书的正文');if(!confirm(`仅上传《${b.title}》到你的私有云书架，供 Mac 按需读取？`))return;await uploadCurrentBook(b);toast('当前书籍已存入私人书库，Mac 可按需读取')}catch(e){toast(e.message)}};
 $('#getCurrentBook').onclick=async()=>{try{const b=await downloadCurrentBook();await saveBook(b);localBooks=await listLocalBooks();if(!latest('book:'+b.id))emit('book:'+b.id,'book',{title:b.title,author:b.author,format:b.format,chapterCount:b.chapters.length,length:b.length,importedAt:b.importedAt,quality:b.quality});renderAll();toast('已读取当前书籍：'+b.title)}catch(e){toast(e.message)}};
