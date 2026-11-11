@@ -1,0 +1,8 @@
+{
+  "appId": "com.lee.reader",
+  "appName": "Lee Reader",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}
