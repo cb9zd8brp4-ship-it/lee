@@ -44,9 +44,12 @@
  <div class="formgrid"><label>Supabase 项目 URL<input id="cloudUrl" placeholder="https://xxxx.supabase.co" autocomplete="off"></label>
  <label>公开 anon / publishable Key<input id="cloudKey" placeholder="输入公开客户端 Key" autocomplete="off"></label>
  <button id="saveCloud" class="btn secondary">保存连接信息</button>
- <label>登录邮箱<input id="email" type="email" autocomplete="email"></label>
- <label>密码<input id="password" type="password" autocomplete="current-password"></label>
- <div class="button-row"><button id="signIn" class="btn primary">登录私人同步</button><button id="signUp" class="btn secondary">首次注册</button><button id="signOut" class="btn secondary">退出</button></div>
+ <p class="sub">无需注册新密码。可使用你登录 ChatGPT 时的邮箱地址，但 ChatGPT 登录状态不能直接复用；本地读书始终无需登录。</p>
+ <label>登录邮箱<input id="email" type="email" autocomplete="email" placeholder="邮箱地址"></label>
+ <button id="sendLoginEmail" class="btn secondary" type="button">发送免密码登录邮件</button>
+ <label>邮件验证码 / 邮件登录链接<input id="emailCode" type="text" autocomplete="one-time-code" placeholder="6位验证码，或复制邮件里的完整登录链接"></label>
+ <p class="sub">如果邮件只有可点击的链接，请先<strong>复制链接地址</strong>，粘贴到上面验证；不要把邮件链接或验证码发给任何人。</p>
+ <div class="button-row"><button id="verifyEmail" class="btn primary">验证并开启同步</button><button id="signOut" class="btn secondary">退出同步</button></div>
  <button id="syncNow" class="btn secondary">立即同步</button>
  <div class="button-row"><button id="shareCurrentBook" class="btn secondary">让 Mac 读取当前书</button><button id="getCurrentBook" class="btn secondary">从云端取当前书</button></div><p id="cloudMessage" role="status" class="sub"></p></div>
  <div class="section-heading"><h3>历史数据与日志</h3></div>
