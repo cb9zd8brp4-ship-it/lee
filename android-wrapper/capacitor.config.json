@@ -3,6 +3,7 @@
   "appName": "Lee Reader",
   "webDir": "www",
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": false,
+    "adjustMarginsForEdgeToEdge": "force"
   }
 }
