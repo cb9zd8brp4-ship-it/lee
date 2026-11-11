@@ -5,6 +5,7 @@ on:
     paths:
       - 'reader/**'
       - 'android-wrapper/**'
+      - 'tests/reader_v1_3.test.mjs'
       - '.github/workflows/reader-debug-apk.yml'
   workflow_dispatch:
   pull_request:
@@ -34,6 +35,13 @@ jobs:
         if: steps.source.outputs.ready == 'yes'
         with:
           node-version: '22'
+      - name: Regression tests (navigation, dislike and passwordless login)
+        if: steps.source.outputs.ready == 'yes'
+        run: |
+          node --check reader/app.js
+          node --check reader/cloud.js
+          node --check reader/books.js
+          node --test tests/reader_v1_3.test.mjs
       - uses: actions/setup-java@v4
         if: steps.source.outputs.ready == 'yes'
         with:
