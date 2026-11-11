@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#f5f2e9"><meta name="description" content="Lee Reader · 个人阅读与信息发现" />
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css" /><title>Lee Reader</title>
+</head>
+<body>
+<div id="shell">
+<header class="appbar"><div><small>LEE / READER</small><h1 id="pageTitle">阅读，让时间慢一点</h1></div><button id="quickSettings" class="iconbtn" aria-label="设置">⚙</button></header>
+<main id="main">
+<section id="home" class="screen active">
+ <div class="eyebrow">留一点时间给自己</div><h2>今天读什么？</h2>
+ <div id="continueBlock" class="feature-card"><div class="muted">继续阅读</div><p>导入一本书，随时从上次的位置继续。</p><button data-target="shelf" class="btn secondary">去我的书架</button></div>
+ <div class="section-heading"><h3>未知发现</h3><button class="quiet" data-target="discover">查看更多 →</button></div>
+ <p class="sub">继承 Lee 信息首页，每天有限探索，不强迫学习。</p><div id="homeDiscover" class="cards"></div>
+ <div class="section-heading"><h3>精选资讯</h3><button class="quiet" data-target="news">查看资讯 →</button></div><div id="homeNews" class="cards"></div>
+</section>
+<section id="shelf" class="screen">
+ <div class="section-heading"><h2>我的书架</h2><label class="btn primary import-label">＋ 导入书籍<input id="bookFile" type="file" accept=".txt,.epub,text/plain,application/epub+zip" multiple hidden></label></div>
+ <p class="sub">TXT / EPUB · 下载过的完整书籍离线阅读。文件只保存在这台设备。</p>
+ <div class="book-url-input"><label>添加网上找到的书籍链接（直链优先导入）<input id="bookUrl" type="url" placeholder="https://…/book.epub 或书籍页面"></label><button class="btn secondary" id="addBookUrl">添加</button></div>
+ <div id="bookList" class="book-list"></div><h3>待处理书源</h3><div id="sourceList" class="cards"></div>
+ <h3>待读与收藏</h3><div id="favoriteList" class="cards"></div>
+</section>
+<section id="discover" class="screen">
+ <div class="section-heading"><h2>今日未知发现</h2><span class="mini">每天 8—12 条</span></div>
+ <p class="sub">原推荐内容与过滤标准仍来自现有 Lee 信息首页。</p>
+ <div class="tabs" id="interestTabs"><button data-lane="all" class="selected">全部</button><button data-lane="learn">学习</button><button data-lane="fun">娱乐</button><button data-lane="explore">随机探索</button></div>
+ <div id="discoverStats" class="muted"></div><div id="discoveryList" class="cards"></div>
+ <div class="section-heading"><h3>原版信息首页</h3><a id="legacyLink" href="https://cb9zd8brp4-ship-it.github.io/lee/" target="_blank" rel="noopener">查看原版全部功能 ↗</a></div>
+ <p class="sub">原版的「来源库」「偷到的东西」仍保留在原站；迁移前不删除原站的本地记录。</p>
+</section>
+<section id="news" class="screen">
+ <div class="section-heading"><h2>资讯与长文</h2><button class="quiet" id="refreshNews">刷新</button></div>
+ <p class="sub">可随时浏览公开资讯，不消耗未知发现的每日额度。</p><div id="newsList" class="cards"></div>
+ <p class="sub" id="feedStatus"></p>
+</section>
+<section id="profile" class="screen">
+ <h2>我的阅读记录</h2><div id="readingStats" class="stats-grid"></div><div id="recentSessions" class="cards"></div>
+ <div class="section-heading"><h3>Mac / 红米同步</h3><span class="mini" id="syncBadge">仅本地</span></div>
+ <p class="sub">未配置私人在线服务前，只在本机存储。Mac 关机不影响手机离线阅读。</p>
+ <div class="formgrid"><label>Supabase 项目 URL<input id="cloudUrl" placeholder="https://xxxx.supabase.co" autocomplete="off"></label>
+ <label>公开 anon / publishable Key<input id="cloudKey" placeholder="输入公开客户端 Key" autocomplete="off"></label>
+ <button id="saveCloud" class="btn secondary">保存连接信息</button>
+ <label>登录邮箱<input id="email" type="email" autocomplete="email"></label>
+ <label>密码<input id="password" type="password" autocomplete="current-password"></label>
+ <div class="button-row"><button id="signIn" class="btn primary">登录私人同步</button><button id="signUp" class="btn secondary">首次注册</button><button id="signOut" class="btn secondary">退出</button></div>
+ <button id="syncNow" class="btn secondary">立即同步</button>
+ <div class="button-row"><button id="shareCurrentBook" class="btn secondary">让 Mac 读取当前书</button><button id="getCurrentBook" class="btn secondary">从云端取当前书</button></div><p id="cloudMessage" role="status" class="sub"></p></div>
+ <div class="section-heading"><h3>历史数据与日志</h3></div>
+ <div class="button-row"><button id="importOld" class="btn secondary">查找原版数据</button><button id="exportData" class="btn secondary">导出私人备份</button><label class="btn secondary import-label">导入备份<input id="backupFile" type="file" accept=".json,application/json" hidden></label></div>
+ <p id="oldDataStatus" class="sub"></p><button id="exportJournal" class="quiet">导出阅读日志数据（供 Obsidian） ↗</button>
+ <p class="sub">旧数据迁移只读取原文件，不覆盖、不删除原版收藏。</p>
+</section>
+</main>
+<nav class="bottom-nav"><button data-target="home" class="selected"><span>⌂</span>首页</button><button data-target="shelf"><span>▤</span>书架</button><button data-target="discover"><span>◇</span>发现</button><button data-target="news"><span>▧</span>资讯</button><button data-target="profile"><span>◷</span>记录</button></nav>
+</div>
+<div id="reader" hidden>
+ <header class="reader-toolbar"><button id="closeReader" class="iconbtn" aria-label="退出阅读">‹</button><div class="reader-heading"><small id="readerBook">正在阅读</small><div id="readerChapter">—</div></div><button id="readerOptions" class="iconbtn" aria-label="阅读设置">Aa</button></header>
+ <div id="readerPaper" class="reader-paper"><div id="readerText" class="reader-text"></div><div class="tap-zone left" data-page="previous" aria-label="上一页"></div><div class="tap-zone right" data-page="next" aria-label="下一页"></div></div>
+ <footer class="reader-footer"><span id="readerProgress">0%</span><span id="readerPageHint">轻触左右区域翻页</span><button id="toggleToc" class="quiet">目录</button></footer>
+ <div id="readerMenu" class="reader-menu" hidden><label>字号 <input id="fontSize" type="range" min="16" max="28" step="1" value="20"></label><label>行距 <input id="lineHeight" type="range" min="14" max="23" step="1" value="18"></label><div class="button-row"><button data-theme="paper" class="btn secondary">纸张</button><button data-theme="night" class="btn secondary">夜间</button><button data-theme="warm" class="btn secondary">暖色</button></div></div>
+ <div id="tocMenu" class="toc-menu" hidden><h3>目录</h3><div id="tocList"></div><button id="closeToc" class="btn secondary">返回阅读</button></div>
+</div>
+<div id="toast" class="toast" hidden role="status"></div>
+<script src="vendor/jszip.min.js"></script><script type="module" src="app.js"></script>
+</body></html>
