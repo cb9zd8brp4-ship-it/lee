@@ -7,6 +7,12 @@ on:
       - 'android-wrapper/**'
       - '.github/workflows/reader-debug-apk.yml'
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'reader/**'
+      - 'android-wrapper/**'
+      - '.github/workflows/reader-debug-apk.yml'
 permissions:
   contents: read
 jobs:
