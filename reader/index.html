@@ -41,9 +41,10 @@
  <h2>我的阅读记录</h2><div id="readingStats" class="stats-grid"></div><div id="recentSessions" class="cards"></div>
  <div class="section-heading"><h3>Mac / 红米同步</h3><span class="mini" id="syncBadge">仅本地</span></div>
  <p class="sub">未配置私人在线服务前，只在本机存储。Mac 关机不影响手机离线阅读。</p>
- <div class="formgrid"><label>Supabase 项目 URL<input id="cloudUrl" placeholder="https://xxxx.supabase.co" autocomplete="off"></label>
- <label>公开 anon / publishable Key<input id="cloudKey" placeholder="输入公开客户端 Key" autocomplete="off"></label>
- <button id="saveCloud" class="btn secondary">保存连接信息</button>
+ <div class="formgrid"><details><summary class="sub">高级同步服务器配置（已预填，通常无需修改）</summary>
+ <label>Supabase 项目 URL<input id="cloudUrl" placeholder="https://xxxx.supabase.co" autocomplete="off"></label>
+ <label>公开 publishable Key<input id="cloudKey" placeholder="输入公开客户端 Key" autocomplete="off"></label>
+ <button id="saveCloud" class="btn secondary">保存连接信息</button></details>
  <p class="sub">无需注册新密码。可使用你登录 ChatGPT 时的邮箱地址，但 ChatGPT 登录状态不能直接复用；本地读书始终无需登录。</p>
  <label>登录邮箱<input id="email" type="email" autocomplete="email" placeholder="邮箱地址"></label>
  <button id="sendLoginEmail" class="btn secondary" type="button">发送免密码登录邮件</button>
