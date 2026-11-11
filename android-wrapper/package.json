@@ -1,0 +1,20 @@
+{
+  "name": "lee-reader-android",
+  "version": "1.0.0-dev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:web": "node copy-web.mjs",
+    "android:add": "npx cap add android",
+    "android:sync": "npm run build:web && npx cap sync android",
+    "android:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.4.0",
+    "@capacitor/core": "7.4.0",
+    "jszip": "3.10.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.4.0"
+  }
+}
