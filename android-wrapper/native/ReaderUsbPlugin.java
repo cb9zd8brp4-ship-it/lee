@@ -55,7 +55,7 @@ public class ReaderUsbPlugin extends Plugin {
             JSObject result = new JSObject();
             if (!inbox.exists()) {result.put("data","");call.resolve(result);return;}
             if (inbox.length() > MAX_BYTES) throw new Exception("Inbox too large");
-            String data = Files.readString(inbox.toPath(), StandardCharsets.UTF_8);
+            String data = new String(Files.readAllBytes(inbox.toPath()), StandardCharsets.UTF_8);
             result.put("data", data);call.resolve(result);
         } catch(Exception e) {call.reject("USB inbox read failed: "+e.getMessage());}
     }
