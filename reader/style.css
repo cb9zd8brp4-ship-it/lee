@@ -10,3 +10,13 @@
 .reader-footer{padding-bottom:var(--reader-bottom-inset);height:calc(50px + var(--reader-bottom-inset))}
 .reader-menu,.toc-menu{bottom:calc(54px + var(--reader-bottom-inset))}
 .toast{bottom:calc(90px + var(--reader-bottom-inset))}
+
+/* V1.4: mobile-first book discovery without crowding reading controls. */
+.catalog-box{margin:12px 0 22px;background:var(--paper);border:1px solid var(--line);border-radius:19px;padding:19px;box-shadow:var(--shadow)}
+.catalog-box h3{margin:5px 0 12px}.book-search-input{display:flex;align-items:stretch;gap:9px}
+.book-search-input input{min-width:0;flex:1;border:1px solid var(--line);border-radius:11px;padding:11px;background:var(--bg);color:var(--ink)}
+.book-search-input button{flex-shrink:0}.catalog-results{display:grid;gap:9px;margin:13px 0}
+.catalog-item{padding:13px}.catalog-item h4{margin:3px 0 5px}.catalog-item .actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:12px 0 0}
+.catalog-item .actions a{font-size:12px}.catalog-item .mini{line-height:1.6}
+#catalogStatus{margin:10px 0 0}#catalogAssist{margin-top:8px}
+@media(max-width:380px){.book-search-input button{padding:9px 10px}.book-search-input input{font-size:13px}.catalog-box{padding:13px}}
