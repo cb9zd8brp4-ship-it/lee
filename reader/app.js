@@ -1,15 +1,18 @@
 import {importFile,loadBook,saveBook,listLocalBooks,progressPercent} from './books.js';
 import {getConfig,getSession,setConfig,sendEmailLogin,verifyEmailLogin,signOut,syncEvents,uploadCurrentBook,downloadCurrentBook} from './cloud.js';
+import {searchPublicBooks,validateDownloadLink,bookFilename,bookAssistantPrompt} from './catalog.js';
+import {refreshStream,mergeStreamItems} from './feeds.js';
 const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const STATE_KEY='lee.reader.events.v1',DEVICE_KEY='lee.reader.device.v1',PREFS_KEY='lee.reader.prefs.v1';
 const ORIGINAL_HOME='https://cb9zd8brp4-ship-it.github.io/lee/';
-const FEED_LOCATIONS=['./feed.json','../feed.json',ORIGINAL_HOME+'feed.json'];
+const FEED_LOCATIONS=[ORIGINAL_HOME+'feed.json','./feed.json','../feed.json'];
 const SAFE=(s='')=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(k,fallback){try{return JSON.parse(localStorage.getItem(k))||fallback}catch{return fallback}}
 const device=localStorage.getItem(DEVICE_KEY)||crypto.randomUUID();localStorage.setItem(DEVICE_KEY,device);
 let events=readJSON(STATE_KEY,[]);if(!Array.isArray(events))events=[];
 let settings=readJSON(PREFS_KEY,{fontSize:20,lineHeight:18,theme:'warm'});
 let feed=[],feedUpdated='',feedLoading=false,lane='all',screen='home',localBooks=[],syncTimer=null,active=null,toastTimer;
+let streamItems=[],streamUpdated='',streamBusy=false,streamChecked=0,catalogResults=[],catalogBusy=false;
 function toast(msg){$('#toast').textContent=msg;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3800)}
 function persist(){try{localStorage.setItem(STATE_KEY,JSON.stringify(events));return true}catch(e){toast('本地存储空间不足，请立即导出备份');return false}}
 function emit(key,type,value,doSync=true){const e={id:crypto.randomUUID(),device,key,type,value,at:new Date().toISOString()};events.push(e);persist();if(doSync)scheduleSync();return e}
@@ -24,7 +27,7 @@ function booksInfo(){return typed('book:').sort((a,b)=>(latest('progress:'+b.__i
 function isLocal(id){return localBooks.some(b=>b.id===id)}
 function renderHome(){const books=booksInfo(),recent=books.find(b=>latest('progress:'+b.__id))||books[0];if(recent){const p=latest('progress:'+recent.__id),percent=p?.percent||0;$('#continueBlock').innerHTML=`<div class="muted">继续阅读 · ${SAFE(recent.author||'我的书架')}</div><h3>${SAFE(recent.title)}</h3><p>已读 ${percent}% · ${isLocal(recent.__id)?'本机可离线阅读':'当前设备需导入书籍正文'}</p><button class="btn primary" data-open-book="${SAFE(recent.__id)}">${isLocal(recent.__id)?'继续阅读':'查看书架'}</button>`}else{$('#continueBlock').innerHTML='<div class="muted">继续阅读</div><p>导入一本书，便可以从上次的章节继续阅读。</p><button class="btn secondary" data-target="shelf">去我的书架</button>'}
  $('#homeDiscover').innerHTML=feed.length?(dailySet().ids.map(id=>feed.find(f=>f.id===id)).filter(f=>f&&latest('feedback:'+f.id)?.value!==-1)).slice(0,2).map(itemCard).join(''):'<div class="empty">今日发现沿用原站内容。联网后显示最新推荐。</div>';
- $('#homeNews').innerHTML=feed.length?feed.slice(0,2).map(itemCard).join(''):'<div class="empty">暂无本地资讯缓存。联网后自动获取。</div>'}
+ $('#homeNews').innerHTML=(streamItems.length?streamItems:feed).length?(streamItems.length?streamItems:feed).filter(i=>latest('feedback:'+i.id)?.value!==-1).slice(0,2).map(itemCard).join(''):'<div class="empty">暂无本地资讯缓存。联网后自动获取。</div>'}
 function renderShelf(){const books=booksInfo();$('#bookList').innerHTML=books.length?books.map(b=>{const p=latest('progress:'+b.__id),percent=p?.percent||0;return `<div class="book-row"><small class="muted">${SAFE(b.format?.toUpperCase()||'电子书')} · ${isLocal(b.__id)?'已离线保存':'仅元数据'}</small><strong>${SAFE(b.title)}</strong><div class="sub">${SAFE(b.author||'作者未录入')} · ${b.chapterCount||0} 章</div><div class="progress"><i style="width:${Math.max(0,Math.min(100,percent))}%"></i></div><div class="sub">阅读进度 ${percent}%</div><div class="button-row"><button class="btn primary" data-open-book="${SAFE(b.__id)}">${isLocal(b.__id)?'继续阅读':'导入相同文件'}</button><button class="btn secondary" data-chat-book="${SAFE(b.__id)}">和 ChatGPT 聊聊</button></div></div>`}).join(''):'<div class="empty">书架还是空的。导入一本合法取得的 EPUB 或 TXT 文件，便可离线翻页。</div>';
 const sources=typed('source:');$('#sourceList').innerHTML=sources.length?sources.map(x=>`<div class="tile"><div class="source">${SAFE(x.status||'外部书源')}</div><h4>${SAFE(x.title||x.url)}</h4><div class="actions"><a href="${SAFE(safeLink(x.url))}" target="_blank" rel="noopener noreferrer">打开原站 / 下载 ↗</a></div></div>`).join(''):'<div class="empty">暂无待处理书源。</div>';const f=typed('favorite:');$('#favoriteList').innerHTML=f.length?f.slice(0,50).map(item=>`<div class="tile"><div class="source">${SAFE(item.source||'我的收藏')}</div><h4>${SAFE(item.title||item.url)}</h4><div class="actions"><a target="_blank" rel="noopener" href="${SAFE(safeLink(item.url))}">打开原文 ↗</a><button data-unfavorite="${SAFE(item.__id)}">取消收藏</button></div></div>`).join(''):'<div class="empty">暂无收藏。原信息首页的历史收藏可在「记录」中无损导入。</div>'}
 function safeLink(u){try{const p=new URL(u);return ['http:','https:'].includes(p.protocol)?p.href:'#'}catch{return '#'}}
@@ -63,13 +66,72 @@ function dismissDiscovery(id){const daily=dailySet();if(!daily.ids.includes(id))
 function filtered(i){if(lane==='all')return true;if(lane==='explore')return i.editorial?.exploration===true||i.tier==='explore';if(lane==='fun')return ['文化与写作','城市与生活'].includes(i.category)||['电影','剧集','随笔','纪录片'].includes(i.type);return !['电影','剧集'].includes(i.type)}
 function renderDiscover(){if(!feed.length){$('#discoveryList').innerHTML='<div class="empty">暂无内容。连网时自动尝试加载原信息首页的推荐池。</div>';return}const daily=dailySet(),byId=new Map(feed.map(i=>[i.id,i])),shown=daily.ids.map(id=>byId.get(id)).filter(Boolean);$('#discoverStats').textContent=`今日已展示 ${daily.shown.length}/12 条 · ${lane==='all'?'全部内容':lane==='fun'?'娱乐':lane==='learn'?'学习':'探索'}`;$('#discoveryList').innerHTML=shown.filter(i=>filtered(i)&&latest('feedback:'+i.id)?.value!==-1).map(itemCard).join('')||'<div class="empty">当前筛选条件下没有内容。</div>';
  if(daily.shown.length<12){const b=document.createElement('button');b.className='btn secondary';b.textContent='再发现一条';b.onclick=()=>{const seen=new Set([...daily.shown,...typed('history:').map(x=>x.__id)]);const next=feed.find(i=>!seen.has(i.id));if(!next)return toast('本期没有更多合格内容');emit('history:'+next.id,'history',{status:'shown',item:next});emit('daily:'+day(),'daily',{ids:[...daily.ids,next.id],shown:[...daily.shown,next.id]});renderDiscover();};$('#discoveryList').append(b)} }
-function renderNews(){const sorted=[...feed].sort((a,b)=>(b.publishedAt||'').localeCompare(a.publishedAt||''));$('#newsList').innerHTML=sorted.length?sorted.filter(i=>latest('feedback:'+i.id)?.value!==-1).slice(0,40).map(itemCard).join(''):'<div class="empty">资讯来源暂不可用，打开联网后重新刷新。</div>'}
+function renderNews(){const sorted=mergeStreamItems([streamItems,feed],180);$('#newsList').innerHTML=sorted.length?sorted.filter(i=>latest('feedback:'+i.id)?.value!==-1).slice(0,150).map(itemCard).join(''):'<div class="empty">资讯来源暂不可用，联网后重新刷新。</div>'}
+async function refreshNewsStream(force=false){
+ if(streamBusy||(!force&&Date.now()-streamChecked<4*3600000))return;
+ streamBusy=true;$('#streamStatus').textContent='资讯源更新中… 不依赖 Mac';
+ try{const data=await refreshStream();streamChecked=Date.now();
+  if(data.items.length){streamItems=data.items;streamUpdated=data.updatedAt;
+   try{localStorage.setItem('lee.reader.stream.v1',JSON.stringify({items:streamItems,updatedAt:streamUpdated,checkedAt:streamChecked}))}catch{}
+  }
+  $('#streamStatus').textContent='独立 RSS：'+data.okSources.length+' 个来源更新 · '+streamItems.length+' 条内容'+(data.errors.length?' · '+data.errors.length+' 个源不可达':'')+(streamUpdated?' · '+new Date(streamUpdated).toLocaleString('zh-CN'):'');
+ }catch(e){streamChecked=Date.now();$('#streamStatus').textContent='更新未完成，仍可阅读已有缓存：'+(e.message||'网络异常')}
+ finally{streamBusy=false;renderHome();renderNews()}
+}
 function renderProfile(){const sessions=typed('session:').sort((a,b)=>b.startedAt.localeCompare(a.startedAt));const total=sessions.reduce((a,s)=>a+(s.seconds||0),0);$('#readingStats').innerHTML=`<div class="stat"><div class="sub">书籍</div><b>${booksInfo().length}</b></div><div class="stat"><div class="sub">累计阅读</div><b>${Math.floor(total/60)} 分钟</b></div><div class="stat"><div class="sub">阅读次数</div><b>${sessions.length}</b></div><div class="stat"><div class="sub">文章收藏</div><b>${typed('favorite:').length}</b></div>`;
 $('#recentSessions').innerHTML=sessions.slice(0,8).map(s=>`<div class="tile"><div class="source">${SAFE(s.startedAt?.slice(0,10))}</div><h4>${SAFE(s.title)}</h4><div class="sub">阅读 ${Math.round(s.seconds/60)} 分钟 · 进度 ${s.fromPercent||0}% → ${s.toPercent||0}%</div></div>`).join('')||'<div class="empty">暂无阅读记录。阅读超过 30 秒后会自动保留会话。</div>';
 const config=getConfig(),ss=getSession();$('#cloudUrl').value=config.url;$('#cloudKey').value=config.key;$('#syncBadge').textContent=ss?.user?.id?'已登录 · 可同步':'仅本地';$('#oldDataStatus').textContent=localStorage.getItem('lee.discovery.v2')?'检测到原版信息首页本地数据。可点击「查找原版数据」只读迁移。':'没有在当前浏览器发现原版数据；也可以导入原站导出的 JSON 备份。'}
-async function importBooks(files){for(const f of Array.from(files||[])){try{toast('正在导入 '+f.name);const book=await importFile(f);if(!localBooks.some(b=>b.id===book.id))localBooks.push(book);if(!latest('book:'+book.id)){emit('book:'+book.id,'book',{title:book.title,author:book.author,format:book.format,chapterCount:book.chapters.length,length:book.length,importedAt:book.importedAt,quality:book.quality})}toast(book.duplicate?'该书已在本机，无需重复导入':'已导入 '+book.title)}catch(e){toast('导入失败：'+e.message)}}renderAll()}
+async function importBooks(files){const results=[];for(const f of Array.from(files||[])){try{toast('正在导入 '+f.name);const book=await importFile(f);if(!localBooks.some(b=>b.id===book.id))localBooks.push(book);if(!latest('book:'+book.id)){emit('book:'+book.id,'book',{title:book.title,author:book.author,format:book.format,chapterCount:book.chapters.length,length:book.length,importedAt:book.importedAt,quality:book.quality})}results.push({success:true,book});toast(book.duplicate?'该书已在本机，无需重复导入':'已导入 '+book.title)}catch(e){results.push({success:false,error:e});toast('导入失败：'+e.message)}}renderAll();return results}
 $('#bookFile').addEventListener('change',e=>{importBooks(e.target.files);e.target.value=''});
 $('#addBookUrl').onclick=async()=>{const url=$('#bookUrl').value.trim(),safe=safeLink(url);if(safe==='#')return toast('请输入有效的 HTTPS/HTTP 链接');const direct=/\.(epub|txt)(?:[?#].*)?$/i.exec(safe);let imported=false;if(direct){try{const r=await fetch(safe);if(!r.ok)throw Error('HTTP '+r.status);const blob=await r.blob();if(blob.size>35*1024*1024)throw Error('文件过大');const f=new File([blob],new URL(safe).pathname.split('/').pop().split('?')[0],{type:blob.type});await importBooks([f]);imported=true}catch(e){toast('网站限制了直接获取，请先下载文件再导入')}}if(!imported){emit('source:'+encodeURIComponent(safe),'source',{url:safe,title:safe,status:direct?'需要下载后导入':'书籍页面链接 · 待下载'});toast('已保存书源链接，后续可下载文件导入')}$('#bookUrl').value='';renderShelf()};
+function renderCatalog(){
+ const container=$('#catalogList');
+ if(!catalogResults.length){container.innerHTML='';return}
+ container.innerHTML=catalogResults.map((b,i)=>`<article class="catalog-item tile">
+   <div class="source">${SAFE(b.provider)} · ${SAFE(b.language||'未知语言')} · ${b.status==='ready'?'有电子书下载':'目录线索'}</div>
+   <h4>${SAFE(b.title)}</h4><p class="sub">${SAFE(b.author||'作者待确认')}</p>
+   <p class="mini">${SAFE(b.completeness)}。请确认作品在使用地区的版权条件。</p>
+   <div class="actions">${b.status==='ready'? `<button class="btn primary" data-catalog-download="${i}">一键下载并入书架</button>`:''}
+   <a href="${SAFE(b.preview||'#')}" target="_blank" rel="noopener">查看来源 / 目录 ↗</a></div></article>`).join('');
+}
+async function catalogSearch(){
+ if(catalogBusy)return;const q=$('#catalogQuery').value.trim();if(q.length<2)return toast('请输入至少2个字的书名或作者');
+ catalogBusy=true;$('#catalogSearch').disabled=true;$('#catalogStatus').textContent='正在搜索开放书目…';
+ try{const data=await searchPublicBooks(q);catalogResults=data.results;renderCatalog();
+  const ready=catalogResults.filter(x=>x.status==='ready').length;
+  $('#catalogStatus').textContent=catalogResults.length?`找到 ${catalogResults.length} 条书目，其中 ${ready} 条提供可直接下载的 EPUB/TXT；其余是需核验的目录线索。`:'暂未在开放书目中找到可用结果，可使用下方 Chat / Work 辅助找书。';
+  if(data.errors.length)$('#catalogStatus').textContent+=' 未连通：'+data.errors.join('、');
+ }catch(e){$('#catalogStatus').textContent='查找失败：'+(e.message||'网络异常')+'。可改用 Chat / Work 辅助查找。';catalogResults=[];renderCatalog()}
+ finally{catalogBusy=false;$('#catalogSearch').disabled=false}
+}
+$('#catalogSearch').onclick=catalogSearch;
+$('#catalogQuery').addEventListener('keydown',e=>{if(e.key==='Enter')catalogSearch()});
+$('#catalogList').addEventListener('click',async e=>{
+ const btn=e.target.closest('[data-catalog-download]');if(!btn)return;
+ const book=catalogResults[Number(btn.dataset.catalogDownload)];if(!book)return;
+ btn.disabled=true;btn.textContent='正在获取并检验…';
+ try{const url=validateDownloadLink(book);const response=await fetch(url,{cache:'no-store'});
+  if(!response.ok)throw Error('下载 HTTP '+response.status);
+  const declared=Number(response.headers.get('Content-Length')||0);if(declared>35*1024*1024)throw Error('文件过大，超过35MB');
+  const blob=await response.blob();if(blob.size===0||blob.size>35*1024*1024)throw Error('下载内容大小异常');
+  const head=new Uint8Array(await blob.slice(0,512).arrayBuffer());
+  if(book.format==='epub'&&!(head[0]===0x50&&head[1]===0x4b))throw Error('服务器返回内容不是 EPUB，请换来源');
+  if(book.format==='txt'){const snippet=new TextDecoder().decode(head).trimStart().toLowerCase();
+   if(snippet.startsWith('<!doctype')||snippet.startsWith('<html'))throw Error('下载的是网页，不是 TXT 全本')}
+  const result=await importBooks([new File([blob],bookFilename(book),{type:book.format==='epub'?'application/epub+zip':'text/plain'})]);
+  if(!result[0]?.success)throw result[0]?.error||Error('导入未完成');
+  const imported=result[0].book;
+  const warning=(imported.quality?.notes||[]).length?'（存在待检查的目录问题）':'';
+  $('#catalogStatus').textContent=`已导入《${book.title}》：${imported.chapters.length} 章，${imported.length} 字${warning}。内容完整性需与出版版本目录核对。`;
+  navigate('shelf');
+ }catch(error){toast('暂无法一键导入：'+(error?.message||'未知错误'));$('#catalogStatus').textContent='下载未成功：'+(error?.message||'网络异常')+'。可以查看来源或用 Chat / Work 寻找其他完整版本。'}
+ finally{btn.disabled=false;btn.textContent='一键下载并入书架'}
+});
+$('#catalogAssist').onclick=async()=>{
+ const text=bookAssistantPrompt($('#catalogQuery').value.trim()||'想读的书');
+ try{await navigator.clipboard.writeText(text);toast('找书任务已复制，可在 Chat / Work 使用')}catch{toast('剪贴板不可用，请在 Mac 的 Chat / Work 中输入书名')}
+ window.open('https://chatgpt.com/','_blank','noopener');
+};
 let beforeTouchX=0,beforeTouchY=0;
 async function openBook(id){const book=await loadBook(id);if(!book){navigate('shelf');$('#bookFile').click();toast('请在此设备导入相同的 EPUB/TXT 文件，进度会同步');return}closeSession();const progress=latest('progress:'+id)||{chapter:0,char:0,percent:0};active={book,chapter:Math.min(book.chapters.length-1,Math.max(0,progress.chapter||0)),char:Math.max(0,progress.char||0),lastChar:0,sessionStart:Date.now(),sessionFrom:progress.percent||0,pageHistory:[]};$('#shell').hidden=true;$('#reader').hidden=false;$('#reader').dataset.theme=settings.theme||'warm';$('#fontSize').value=settings.fontSize||20;$('#lineHeight').value=settings.lineHeight||18;applyReaderPrefs();$('#readerBook').textContent=book.title;$('#readerMenu').hidden=true;$('#tocMenu').hidden=true;renderPage();}
 function applyReaderPrefs(){$('#reader').style.setProperty('--font-size',(settings.fontSize||20)+'px');$('#reader').style.setProperty('--line-height',String((settings.lineHeight||18)/10));$('#reader').dataset.theme=settings.theme||'warm';localStorage.setItem(PREFS_KEY,JSON.stringify(settings))}
@@ -108,11 +170,11 @@ $('#readerPaper').addEventListener('touchend',e=>{if(!active)return;const dx=e.c
 window.addEventListener('keydown',e=>{if(active){if(['ArrowRight','PageDown'].includes(e.key)){e.preventDefault();turnPage(1)}if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();turnPage(-1)}if(e.key==='Escape')closeBook()}});
 window.addEventListener('resize',()=>{if(active){active.pageHistory=[];renderPage()}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(active){saveProgress(true);const elapsed=Math.round((Date.now()-active.sessionStart)/1000);if(elapsed>=30){emit('session:'+crypto.randomUUID(),'session',{bookId:active.book.id,title:active.book.title,startedAt:new Date(active.sessionStart).toISOString(),seconds:Math.min(elapsed,12*3600),fromPercent:active.sessionFrom,toPercent:progressPercent(active.book,{chapter:active.chapter,char:active.char})});active.sessionStart=Date.now();active.sessionFrom=progressPercent(active.book,{chapter:active.chapter,char:active.char})}}}else{if(active){active.sessionStart=Date.now();active.sessionFrom=progressPercent(active.book,{chapter:active.chapter,char:active.char})}if(getSession())scheduleSync()}});
-window.addEventListener('online',()=>{loadFeed();scheduleSync()});
+window.addEventListener('online',()=>{loadFeed();refreshNewsStream(true);scheduleSync()});
 $('#tocList').addEventListener('click',e=>{const btn=e.target.closest('[data-chapter]');if(!btn||!active)return;active.chapter=Number(btn.dataset.chapter);active.char=0;active.pageHistory=[];$('#tocMenu').hidden=true;renderPage()});
 function findItem(id){return feed.find(x=>x.id===id)||latest('history:'+id)?.item||latest('favorite:'+id)}
 document.addEventListener('click',e=>{const target=e.target.closest('[data-target]');if(target){navigate(target.dataset.target);return}const open=e.target.closest('[data-open-book]');if(open){openBook(open.dataset.openBook);return}const cb=e.target.closest('[data-chat-book]');if(cb){chatAboutBook(cb.dataset.chatBook);return}const fav=e.target.closest('[data-favorite]');if(fav){const item=findItem(fav.dataset.favorite);if(!item)return;const key='favorite:'+item.id;emit(key,'favorite',latest(key)?null:{id:item.id,title:item.titleZh||item.title,source:item.source,url:item.url,note:'',savedAt:new Date().toISOString()});renderAll();return}const unfav=e.target.closest('[data-unfavorite]');if(unfav){emit('favorite:'+unfav.dataset.unfavorite,'favorite',null);renderAll();return}const vote=e.target.closest('[data-vote]');if(vote){const id=vote.dataset.vote,item=findItem(id),v=Number(vote.dataset.value);emit('feedback:'+id,'feedback',{value:v,sourceId:item?.sourceId||'',tags:item?.tags||[]});if(v===-1){emit('history:'+id,'history',{status:'disliked',item,at:new Date().toISOString()});dismissDiscovery(id)}renderAll();return}const link=e.target.closest('[data-open-article]');if(link){const item=findItem(link.dataset.openArticle);if(item)emit('history:'+item.id,'history',{status:'opened',item,openedAt:new Date().toISOString()})}});
-$$('#interestTabs button').forEach(b=>b.addEventListener('click',()=>{lane=b.dataset.lane;$$('#interestTabs button').forEach(n=>n.classList.toggle('selected',n===b));renderDiscover()}));$('#refreshNews').onclick=loadFeed;
+$$('#interestTabs button').forEach(b=>b.addEventListener('click',()=>{lane=b.dataset.lane;$$('#interestTabs button').forEach(n=>n.classList.toggle('selected',n===b));renderDiscover()}));$('#refreshNews').onclick=()=>{loadFeed();refreshNewsStream(true)};
 function chatAboutBook(id){const book=booksInfo().find(x=>x.__id===id);if(!book)return;const progress=latest('progress:'+id);emit('discussion:'+crypto.randomUUID(),'discussion',{bookId:id,title:book.title,at:new Date().toISOString(),topic:'用户主动开启 ChatGPT 阅读讨论'});const context=`我正在阅读《${book.title}》${book.author?'（'+book.author+'）':''}。目前阅读进度约 ${progress?.percent||0}%，第 ${(progress?.chapter||0)+1} 章。请围绕我已经读到的部分与我展开讨论，先不要剧透后续章节。\n\n我想讨论的问题：`;navigator.clipboard?.writeText(context).then(()=>toast('讨论上下文已复制，打开 ChatGPT 粘贴')).catch(()=>toast('请选择并复制讨论上下文'));window.open('https://chatgpt.com/','_blank','noopener')}
 function migrateLegacy(raw){if(!raw||![1,2,3].includes(raw.version)||(raw.version!==1&&!Array.isArray(raw.favorites)))throw Error('不是支持的 Lee 信息首页备份');let count=0;function add(key,type,val){if(latest(key)!==null)return;emit(key,type,val,false);count++}
  for(const f of (raw.favorites||[])){if(!f?.id||!f.url)continue;add('favorite:'+f.id,'favorite',{...f,title:f.titleZh||f.title||'',savedAt:f.savedAt||new Date().toISOString()})}
@@ -133,5 +195,6 @@ $('#getCurrentBook').onclick=async()=>{try{const b=await downloadCurrentBook();a
 let syncing=false;async function doSync(show=false){if(syncing||!getSession()||!navigator.onLine){if(show)toast('请先登录私人同步账户并联网');return}syncing=true;$('#syncBadge').textContent='同步中…';try{const fromCloud=await syncEvents(events),old=new Set(events.map(e=>e.id));let n=0;for(const e of fromCloud){if(!old.has(e.id)){events.push(e);n++}}if(n)persist();$('#syncBadge').textContent='已同步';$('#cloudMessage').textContent='上次同步：'+new Date().toLocaleTimeString('zh-CN')+(n?` · 合并 ${n} 项远端记录`:' · 没有新记录');if(n)renderAll();if(show)toast('同步完成')}catch(e){$('#syncBadge').textContent='离线保留';$('#cloudMessage').textContent='同步未完成：'+e.message;if(show)toast(e.message)}finally{syncing=false}}
 function scheduleSync(){clearTimeout(syncTimer);if(getSession())syncTimer=setTimeout(()=>doSync(),1500)}
 setInterval(()=>{if(getSession()&&navigator.onLine)doSync()},90000);
-async function boot(){try{localBooks=await listLocalBooks()}catch(e){toast('本地书库暂不可用：'+e.message)}const cache=readJSON('lee.reader.feed.cache',{});if(cache.feed?.length){feed=cache.feed;feedUpdated=cache.feedUpdated||''}renderAll();loadFeed();if(getSession())scheduleSync();if('serviceWorker' in navigator &&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+setInterval(()=>{if(navigator.onLine)refreshNewsStream()},3600000);
+async function boot(){try{localBooks=await listLocalBooks()}catch(e){toast('本地书库暂不可用：'+e.message)}const cache=readJSON('lee.reader.feed.cache',{});if(cache.feed?.length){feed=cache.feed;feedUpdated=cache.feedUpdated||''}const rss=readJSON('lee.reader.stream.v1',{});if(rss.items?.length){streamItems=rss.items;streamUpdated=rss.updatedAt||'';streamChecked=Number(rss.checkedAt)||0}renderAll();loadFeed();refreshNewsStream();if(getSession())scheduleSync();if('serviceWorker' in navigator &&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 boot();
