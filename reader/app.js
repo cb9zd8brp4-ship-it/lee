@@ -2,6 +2,7 @@ import {importFile,loadBook,saveBook,listLocalBooks,progressPercent} from './boo
 import {getConfig,getSession,setConfig,sendEmailLogin,verifyEmailLogin,signOut,syncEvents,uploadCurrentBook,downloadCurrentBook} from './cloud.js';
 import {searchPublicBooks,validateDownloadLink,bookFilename,bookAssistantPrompt} from './catalog.js';
 import {refreshStream,mergeStreamItems} from './feeds.js';
+import {exportUsbEvents,getUsbInbox,acknowledgeUsbInbox,usbAvailable} from './usb.js';
 const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const STATE_KEY='lee.reader.events.v1',DEVICE_KEY='lee.reader.device.v1',PREFS_KEY='lee.reader.prefs.v1';
 const ORIGINAL_HOME='https://cb9zd8brp4-ship-it.github.io/lee/';
@@ -13,9 +14,28 @@ let events=readJSON(STATE_KEY,[]);if(!Array.isArray(events))events=[];
 let settings=readJSON(PREFS_KEY,{fontSize:20,lineHeight:18,theme:'warm'});
 let feed=[],feedUpdated='',feedLoading=false,lane='all',screen='home',localBooks=[],syncTimer=null,active=null,toastTimer;
 let streamItems=[],streamUpdated='',streamBusy=false,streamChecked=0,catalogResults=[],catalogBusy=false;
+let usbTimer=null,usbReading=false;
 function toast(msg){$('#toast').textContent=msg;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3800)}
-function persist(){try{localStorage.setItem(STATE_KEY,JSON.stringify(events));return true}catch(e){toast('本地存储空间不足，请立即导出备份');return false}}
+function persist(){try{localStorage.setItem(STATE_KEY,JSON.stringify(events));queueUsbSnapshot();return true}catch(e){toast('本地存储空间不足，请立即导出备份');return false}}
 function emit(key,type,value,doSync=true){const e={id:crypto.randomUUID(),device,key,type,value,at:new Date().toISOString()};events.push(e);persist();if(doSync)scheduleSync();return e}
+function queueUsbSnapshot(){
+ if(!usbAvailable())return;
+ clearTimeout(usbTimer);usbTimer=setTimeout(()=>exportUsbEvents(events).catch(e=>console.warn('USB snapshot:',e.message)),650);
+}
+async function receiveUsbChanges(){
+ if(usbReading||!usbAvailable())return;
+ usbReading=true;
+ try{
+  const incoming=await getUsbInbox();
+  if(!incoming)return;
+  const existing=new Set(events.map(x=>x.id));
+  const extra=incoming.filter(x=>!existing.has(x.id));
+  if(extra.length){events.push(...extra);persist();renderAll()}
+  await acknowledgeUsbInbox();
+  $('#usbStatus').textContent='USB 数据交换：已接收并合并 '+extra.length+' 条新增事件';
+ }catch(e){console.warn('USB inbound:',e.message);$('#usbStatus').textContent='USB 同步数据需要检查：'+e.message}
+ finally{usbReading=false}
+}
 function fold(){const records=new Map();for(const e of events){const old=records.get(e.key);if(!old||e.at>old.at||(e.at===old.at&&e.id>old.id))records.set(e.key,e)}return records}
 function latest(key){return fold().get(key)?.value||null}
 function typed(prefix){return [...fold().values()].filter(e=>e.key.startsWith(prefix)&&e.value!==null).map(e=>({...e.value,__id:e.key.slice(prefix.length),__at:e.at}))}
@@ -80,7 +100,7 @@ async function refreshNewsStream(force=false){
 }
 function renderProfile(){const sessions=typed('session:').sort((a,b)=>b.startedAt.localeCompare(a.startedAt));const total=sessions.reduce((a,s)=>a+(s.seconds||0),0);$('#readingStats').innerHTML=`<div class="stat"><div class="sub">书籍</div><b>${booksInfo().length}</b></div><div class="stat"><div class="sub">累计阅读</div><b>${Math.floor(total/60)} 分钟</b></div><div class="stat"><div class="sub">阅读次数</div><b>${sessions.length}</b></div><div class="stat"><div class="sub">文章收藏</div><b>${typed('favorite:').length}</b></div>`;
 $('#recentSessions').innerHTML=sessions.slice(0,8).map(s=>`<div class="tile"><div class="source">${SAFE(s.startedAt?.slice(0,10))}</div><h4>${SAFE(s.title)}</h4><div class="sub">阅读 ${Math.round(s.seconds/60)} 分钟 · 进度 ${s.fromPercent||0}% → ${s.toPercent||0}%</div></div>`).join('')||'<div class="empty">暂无阅读记录。阅读超过 30 秒后会自动保留会话。</div>';
-const config=getConfig(),ss=getSession();$('#cloudUrl').value=config.url;$('#cloudKey').value=config.key;$('#syncBadge').textContent=ss?.user?.id?'已登录 · 可同步':'仅本地';$('#oldDataStatus').textContent=localStorage.getItem('lee.discovery.v2')?'检测到原版信息首页本地数据。可点击「查找原版数据」只读迁移。':'没有在当前浏览器发现原版数据；也可以导入原站导出的 JSON 备份。'}
+const config=getConfig(),ss=getSession();$('#cloudUrl').value=config.url;$('#cloudKey').value=config.key;$('#syncBadge').textContent=ss?.user?.id?'私人云同步可用':'本地优先';$('#usbStatus').textContent=usbAvailable()?'USB 接口已就绪，插 Mac 后由 ADB 同步':'Mac 网页：使用本机阅读记录；安卓 USB 同步需配置 Mac ADB 服务';$('#oldDataStatus').textContent=localStorage.getItem('lee.discovery.v2')?'检测到原版信息首页本地数据。可点击「查找原版数据」只读迁移。':'没有在当前浏览器发现原版数据；也可以导入原站导出的 JSON 备份。'}
 async function importBooks(files){const results=[];for(const f of Array.from(files||[])){try{toast('正在导入 '+f.name);const book=await importFile(f);if(!localBooks.some(b=>b.id===book.id))localBooks.push(book);if(!latest('book:'+book.id)){emit('book:'+book.id,'book',{title:book.title,author:book.author,format:book.format,chapterCount:book.chapters.length,length:book.length,importedAt:book.importedAt,quality:book.quality})}results.push({success:true,book});toast(book.duplicate?'该书已在本机，无需重复导入':'已导入 '+book.title)}catch(e){results.push({success:false,error:e});toast('导入失败：'+e.message)}}renderAll();return results}
 $('#bookFile').addEventListener('change',e=>{importBooks(e.target.files);e.target.value=''});
 $('#addBookUrl').onclick=async()=>{const url=$('#bookUrl').value.trim(),safe=safeLink(url);if(safe==='#')return toast('请输入有效的 HTTPS/HTTP 链接');const direct=/\.(epub|txt)(?:[?#].*)?$/i.exec(safe);let imported=false;if(direct){try{const r=await fetch(safe);if(!r.ok)throw Error('HTTP '+r.status);const blob=await r.blob();if(blob.size>35*1024*1024)throw Error('文件过大');const f=new File([blob],new URL(safe).pathname.split('/').pop().split('?')[0],{type:blob.type});await importBooks([f]);imported=true}catch(e){toast('网站限制了直接获取，请先下载文件再导入')}}if(!imported){emit('source:'+encodeURIComponent(safe),'source',{url:safe,title:safe,status:direct?'需要下载后导入':'书籍页面链接 · 待下载'});toast('已保存书源链接，后续可下载文件导入')}$('#bookUrl').value='';renderShelf()};
@@ -196,5 +216,6 @@ let syncing=false;async function doSync(show=false){if(syncing||!getSession()||!
 function scheduleSync(){clearTimeout(syncTimer);if(getSession())syncTimer=setTimeout(()=>doSync(),1500)}
 setInterval(()=>{if(getSession()&&navigator.onLine)doSync()},90000);
 setInterval(()=>{if(navigator.onLine)refreshNewsStream()},3600000);
-async function boot(){try{localBooks=await listLocalBooks()}catch(e){toast('本地书库暂不可用：'+e.message)}const cache=readJSON('lee.reader.feed.cache',{});if(cache.feed?.length){feed=cache.feed;feedUpdated=cache.feedUpdated||''}const rss=readJSON('lee.reader.stream.v1',{});if(rss.items?.length){streamItems=rss.items;streamUpdated=rss.updatedAt||'';streamChecked=Number(rss.checkedAt)||0}renderAll();loadFeed();refreshNewsStream();if(getSession())scheduleSync();if('serviceWorker' in navigator &&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+setInterval(()=>{if(!document.hidden)receiveUsbChanges()},6500);
+async function boot(){try{localBooks=await listLocalBooks()}catch(e){toast('本地书库暂不可用：'+e.message)}const cache=readJSON('lee.reader.feed.cache',{});if(cache.feed?.length){feed=cache.feed;feedUpdated=cache.feedUpdated||''}const rss=readJSON('lee.reader.stream.v1',{});if(rss.items?.length){streamItems=rss.items;streamUpdated=rss.updatedAt||'';streamChecked=Number(rss.checkedAt)||0}renderAll();loadFeed();refreshNewsStream();if(getSession())scheduleSync();queueUsbSnapshot();receiveUsbChanges();if('serviceWorker' in navigator &&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 boot();
