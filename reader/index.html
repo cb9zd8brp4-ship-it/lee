@@ -13,13 +13,23 @@
 <section id="home" class="screen active">
  <div class="eyebrow">留一点时间给自己</div><h2>今天读什么？</h2>
  <div id="continueBlock" class="feature-card"><div class="muted">继续阅读</div><p>导入一本书，随时从上次的位置继续。</p><button data-target="shelf" class="btn secondary">去我的书架</button></div>
+ <div class="section-heading"><h3>想读什么书？</h3><button class="quiet" data-target="shelf">直接找书 →</button></div>
+ <p class="sub">输入书名或作者，应用优先尝试找到完整电子书并离线入库。找不到时可交给 Chat / Work 辅助查找。</p>
  <div class="section-heading"><h3>未知发现</h3><button class="quiet" data-target="discover">查看更多 →</button></div>
  <p class="sub">继承 Lee 信息首页，每天有限探索，不强迫学习。</p><div id="homeDiscover" class="cards"></div>
  <div class="section-heading"><h3>精选资讯</h3><button class="quiet" data-target="news">查看资讯 →</button></div><div id="homeNews" class="cards"></div>
 </section>
 <section id="shelf" class="screen">
  <div class="section-heading"><h2>我的书架</h2><label class="btn primary import-label">＋ 导入书籍<input id="bookFile" type="file" accept=".txt,.epub,text/plain,application/epub+zip" multiple hidden></label></div>
- <p class="sub">TXT / EPUB · 下载过的完整书籍离线阅读。文件只保存在这台设备。</p>
+ <p class="sub">手机优先自动找书、获取可下载的完整电子书；不支持的作品可使用 Chat / Work 辅助。书籍正文保存在本机。</p>
+ <section class="catalog-box" aria-label="自动找书"><div class="eyebrow">LEE / FIND BOOK</div>
+ <h3>找一本想读的书</h3>
+ <div class="book-search-input"><input id="catalogQuery" type="search" aria-label="书名或作者" placeholder="输入书名或作者，例如：红楼梦" autocomplete="off" maxlength="90" />
+ <button id="catalogSearch" class="btn primary">搜索全书</button></div>
+ <p id="catalogStatus" role="status" class="sub">当前支持 Gutenberg 公版书目和维基文库书目检索。国内网络的可达性以实际结果为准。</p>
+ <div id="catalogList" class="catalog-results"></div>
+ <button id="catalogAssist" class="quiet">复杂书籍交给 Chat / Work 辅助找书 →</button>
+ </section>
  <div class="book-url-input"><label>添加网上找到的书籍链接（直链优先导入）<input id="bookUrl" type="url" placeholder="https://…/book.epub 或书籍页面"></label><button class="btn secondary" id="addBookUrl">添加</button></div>
  <div id="bookList" class="book-list"></div><h3>待处理书源</h3><div id="sourceList" class="cards"></div>
  <h3>待读与收藏</h3><div id="favoriteList" class="cards"></div>
@@ -34,13 +44,15 @@
 </section>
 <section id="news" class="screen">
  <div class="section-heading"><h2>资讯与长文</h2><button class="quiet" id="refreshNews">刷新</button></div>
- <p class="sub">可随时浏览公开资讯，不消耗未知发现的每日额度。</p><div id="newsList" class="cards"></div>
+ <p class="sub">文章、播客、科学期刊与技术研究等；打开阅读器时联网更新，完全不依赖 Mac。只保留标题和摘要，原文从发布方打开。</p>
+ <p id="streamStatus" class="sub">独立资讯流：连接中…</p><div id="newsList" class="cards"></div>
  <p class="sub" id="feedStatus"></p>
 </section>
 <section id="profile" class="screen">
  <h2>我的阅读记录</h2><div id="readingStats" class="stats-grid"></div><div id="recentSessions" class="cards"></div>
- <div class="section-heading"><h3>Mac / 红米同步</h3><span class="mini" id="syncBadge">仅本地</span></div>
- <p class="sub">未配置私人在线服务前，只在本机存储。Mac 关机不影响手机离线阅读。</p>
+ <div class="section-heading"><h3>本地阅读数据</h3><span class="mini" id="syncBadge">仅本地</span></div>
+ <p class="sub">阅读与资讯独立运行，无需注册账号。USB 自动双向同步仍需 Mac 端 ADB 桥接才能启用；不要误以为插上 USB 就已经完成同步。</p>
+ <details><summary class="sub">可选：旧版私人云同步（不作为阅读前提）</summary>
  <div class="formgrid"><details><summary class="sub">高级同步服务器配置（已预填，通常无需修改）</summary>
  <label>Supabase 项目 URL<input id="cloudUrl" placeholder="https://xxxx.supabase.co" autocomplete="off"></label>
  <label>公开 publishable Key<input id="cloudKey" placeholder="输入公开客户端 Key" autocomplete="off"></label>
@@ -53,7 +65,7 @@
  <div class="button-row"><button id="verifyEmail" class="btn primary">验证并开启同步</button><button id="signOut" class="btn secondary">退出同步</button></div>
  <button id="syncNow" class="btn secondary">立即同步</button>
  <div class="button-row"><button id="shareCurrentBook" class="btn secondary">让 Mac 读取当前书</button><button id="getCurrentBook" class="btn secondary">从云端取当前书</button></div><p id="cloudMessage" role="status" class="sub"></p></div>
- <div class="section-heading"><h3>历史数据与日志</h3></div>
+ </details><div class="section-heading"><h3>历史数据与日志</h3></div>
  <div class="button-row"><button id="importOld" class="btn secondary">查找原版数据</button><button id="exportData" class="btn secondary">导出私人备份</button><label class="btn secondary import-label">导入备份<input id="backupFile" type="file" accept=".json,application/json" hidden></label></div>
  <p id="oldDataStatus" class="sub"></p><button id="exportJournal" class="quiet">导出阅读日志数据（供 Obsidian） ↗</button>
  <p class="sub">旧数据迁移只读取原文件，不覆盖、不删除原版收藏。</p>
