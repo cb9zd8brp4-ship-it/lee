@@ -5,5 +5,10 @@
   "android": {
     "allowMixedContent": false,
     "adjustMarginsForEdgeToEdge": "force"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
   }
 }
