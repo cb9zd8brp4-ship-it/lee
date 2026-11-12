@@ -36,7 +36,7 @@ export function mergeStreamItems(lists,max=160){
  const urls=new Set(),ids=new Set(),out=[];
  for(const item of lists.flat()){
   const normalized=normalizeArticleLink(item?.url);
-  if(!normalized||!item.title||urls.has(normalized)||ids.has(item.id))continue;
+  if(!normalized||!(item.title||item.titleZh)||urls.has(normalized)||ids.has(item.id))continue;
   urls.add(normalized);ids.add(item.id);out.push(item);
  }
  return out.sort((a,b)=>(b.publishedAt||'').localeCompare(a.publishedAt||'')).slice(0,max);
