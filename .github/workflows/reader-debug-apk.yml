@@ -70,17 +70,34 @@ jobs:
           npx cap add android
           node install-native.mjs
           npx cap sync android
+      - name: Restore persistent debug signing key when configured
+        if: steps.source.outputs.ready == 'yes'
+        env:
+          LEE_READER_DEBUG_KEYSTORE_B64: ${{ secrets.LEE_READER_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$LEE_READER_DEBUG_KEYSTORE_B64" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "$LEE_READER_DEBUG_KEYSTORE_B64" | base64 --decode > "$HOME/.android/debug.keystore"
+            chmod 600 "$HOME/.android/debug.keystore"
+            echo "Persistent debug keystore restored"
+          else
+            echo "::warning::No persistent signing key configured. This APK may NOT overwrite an existing Lee Reader; do not uninstall without a verified backup."
+          fi
       - name: Build installable debug APK
         if: steps.source.outputs.ready == 'yes'
         working-directory: android-wrapper/android
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug
+          TOOL=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          "$TOOL" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/signature.txt
       - name: Store debug APK
         if: steps.source.outputs.ready == 'yes'
         uses: actions/upload-artifact@v4
         with:
           name: LeeReader-debug-apk
-          path: android-wrapper/android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            android-wrapper/android/app/build/outputs/apk/debug/app-debug.apk
+            android-wrapper/android/app/build/outputs/apk/debug/signature.txt
           retention-days: 14
           if-no-files-found: error
