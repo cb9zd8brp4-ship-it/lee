@@ -1,0 +1,104 @@
+name: Lee Reader - Debug APK
+on:
+  push:
+    branches: ['feature/lee-reader-v1']
+    paths:
+      - 'reader/**'
+      - 'android-wrapper/**'
+      - 'tests/reader_v1_3.test.mjs'
+      - 'tests/reader_v1_4.test.mjs'
+      - 'tests/reader_v1_4_usb.test.mjs'
+      - '.github/workflows/reader-debug-apk.yml'
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'reader/**'
+      - 'android-wrapper/**'
+      - '.github/workflows/reader-debug-apk.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check whether Reader sources have been committed
+        id: source
+        run: |
+          if [ -f reader/index.html ] && [ -f android-wrapper/package.json ]; then
+            echo 'ready=yes' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=no' >> "$GITHUB_OUTPUT"
+            echo 'Source files not yet pushed; skip build safely.'
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.source.outputs.ready == 'yes'
+        with:
+          node-version: '22'
+      - name: Regression tests (navigation, dislike and passwordless login)
+        if: steps.source.outputs.ready == 'yes'
+        run: |
+          node --check reader/app.js
+          node --check reader/cloud.js
+          node --check reader/books.js
+          node --check reader/catalog.js
+          node --check reader/feeds.js
+          node --check reader/usb.js
+          node --test tests/reader_v1_3.test.mjs tests/reader_v1_4.test.mjs tests/reader_v1_4_usb.test.mjs
+          python3 -m py_compile mac/reader_usb_sync.py
+      - uses: actions/setup-java@v4
+        if: steps.source.outputs.ready == 'yes'
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Use runner Android SDK
+        if: steps.source.outputs.ready == 'yes'
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms"
+      - name: Install Capacitor and bundle web assets
+        if: steps.source.outputs.ready == 'yes'
+        working-directory: android-wrapper
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:web
+          test -s www/vendor/jszip.min.js
+          test -s www/index.html
+          npx cap add android
+          node install-native.mjs
+          node update-version.mjs
+          npx cap sync android
+      - name: Restore persistent debug signing key when configured
+        if: steps.source.outputs.ready == 'yes'
+        env:
+          LEE_READER_DEBUG_KEYSTORE_B64: ${{ secrets.LEE_READER_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$LEE_READER_DEBUG_KEYSTORE_B64" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "$LEE_READER_DEBUG_KEYSTORE_B64" | base64 --decode > "$HOME/.android/debug.keystore"
+            chmod 600 "$HOME/.android/debug.keystore"
+            echo "Persistent debug keystore restored"
+          else
+            echo "::warning::No persistent signing key configured. This APK may NOT overwrite an existing Lee Reader; do not uninstall without a verified backup."
+          fi
+      - name: Build installable debug APK
+        if: steps.source.outputs.ready == 'yes'
+        working-directory: android-wrapper/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+          TOOL=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          "$TOOL" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/signature.txt
+      - name: Store debug APK
+        if: steps.source.outputs.ready == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LeeReader-debug-apk
+          path: |
+            android-wrapper/android/app/build/outputs/apk/debug/app-debug.apk
+            android-wrapper/android/app/build/outputs/apk/debug/signature.txt
+          retention-days: 14
+          if-no-files-found: error

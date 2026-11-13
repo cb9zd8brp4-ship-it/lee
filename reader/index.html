@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#f5f2e9"><meta name="description" content="Lee Reader · 个人阅读与信息发现" />
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css" /><title>Lee Reader</title>
+</head>
+<body>
+<div id="shell">
+<header class="appbar"><div><small>LEE / READER · V1.4</small><h1 id="pageTitle">阅读，让时间慢一点</h1></div><button id="quickSettings" class="iconbtn" aria-label="设置">⚙</button></header>
+<main id="main">
+<section id="home" class="screen active">
+ <div class="eyebrow">留一点时间给自己</div><h2>今天读什么？</h2>
+ <div id="continueBlock" class="feature-card"><div class="muted">继续阅读</div><p>导入一本书，随时从上次的位置继续。</p><button data-target="shelf" class="btn secondary">去我的书架</button></div>
+ <div class="section-heading"><h3>想读什么书？</h3><button class="quiet" data-target="shelf">直接找书 →</button></div>
+ <p class="sub">输入书名或作者，应用优先尝试找到完整电子书并离线入库。找不到时可交给 Chat / Work 辅助查找。</p>
+ <div class="section-heading"><h3>未知发现</h3><button class="quiet" data-target="discover">查看更多 →</button></div>
+ <p class="sub">继承 Lee 信息首页，每天有限探索，不强迫学习。</p><div id="homeDiscover" class="cards"></div>
+ <div class="section-heading"><h3>精选资讯</h3><button class="quiet" data-target="news">查看资讯 →</button></div><div id="homeNews" class="cards"></div>
+</section>
+<section id="shelf" class="screen">
+ <div class="section-heading"><h2>我的书架</h2><label class="btn primary import-label">＋ 导入书籍<input id="bookFile" type="file" accept=".txt,.epub,text/plain,application/epub+zip" multiple hidden></label></div>
+ <p class="sub">手机优先自动找书、获取可下载的完整电子书；不支持的作品可使用 Chat / Work 辅助。书籍正文保存在本机。</p>
+ <section class="catalog-box" aria-label="自动找书"><div class="eyebrow">LEE / FIND BOOK</div>
+ <h3>找一本想读的书</h3>
+ <div class="book-search-input"><input id="catalogQuery" type="search" aria-label="书名或作者" placeholder="输入书名或作者，例如：红楼梦" autocomplete="off" maxlength="90" />
+ <button id="catalogSearch" class="btn primary">搜索全书</button></div>
+ <p id="catalogStatus" role="status" class="sub">当前支持 Gutenberg 公版书目和维基文库书目检索。国内网络的可达性以实际结果为准。</p>
+ <div id="catalogList" class="catalog-results"></div>
+ <button id="catalogAssist" class="quiet">复杂书籍交给 Chat / Work 辅助找书 →</button>
+ </section>
+ <div class="book-url-input"><label>添加网上找到的书籍链接（直链优先导入）<input id="bookUrl" type="url" placeholder="https://…/book.epub 或书籍页面"></label><button class="btn secondary" id="addBookUrl">添加</button></div>
+ <div id="bookList" class="book-list"></div><h3>待处理书源</h3><div id="sourceList" class="cards"></div>
+ <h3>待读与收藏</h3><div id="favoriteList" class="cards"></div>
+</section>
+<section id="discover" class="screen">
+ <div class="section-heading"><h2>今日未知发现</h2><span class="mini">每天 8—12 条</span></div>
+ <p class="sub">原推荐内容与过滤标准仍来自现有 Lee 信息首页。</p>
+ <div class="tabs" id="interestTabs"><button data-lane="all" class="selected">全部</button><button data-lane="learn">学习</button><button data-lane="fun">娱乐</button><button data-lane="explore">随机探索</button></div>
+ <div id="discoverStats" class="muted"></div><div id="discoveryList" class="cards"></div>
+ <div class="section-heading"><h3>原版信息首页</h3><a id="legacyLink" href="https://cb9zd8brp4-ship-it.github.io/lee/" target="_blank" rel="noopener">查看原版全部功能 ↗</a></div>
+ <p class="sub">原版的「来源库」「偷到的东西」仍保留在原站；迁移前不删除原站的本地记录。</p>
+</section>
+<section id="news" class="screen">
+ <div class="section-heading"><h2>资讯与长文</h2><button class="quiet" id="refreshNews">刷新</button></div>
+ <p class="sub">文章、播客、科学期刊与技术研究等；打开阅读器时联网更新，完全不依赖 Mac。只保留标题和摘要，原文从发布方打开。</p>
+ <p id="streamStatus" class="sub">独立资讯流：连接中…</p><div id="newsList" class="cards"></div>
+ <p class="sub" id="feedStatus"></p>
+</section>
+<section id="profile" class="screen">
+ <h2>我的阅读记录</h2><div id="readingStats" class="stats-grid"></div><div id="recentSessions" class="cards"></div>
+ <div class="section-heading"><h3>本地阅读数据</h3><span class="mini" id="syncBadge">仅本地</span></div>
+ <p class="sub">阅读与资讯不需注册账号。Mac 安装 Lee Reader USB 同步服务后，连接数据线即可合并阅读事件并归档 Obsidian；未安装前不自动同步。</p><p id="usbStatus" role="status" class="sub">USB 状态：等待检查…</p>
+ <details><summary class="sub">可选：旧版私人云同步（不作为阅读前提）</summary>
+ <div class="formgrid"><details><summary class="sub">高级同步服务器配置（已预填，通常无需修改）</summary>
+ <label>Supabase 项目 URL<input id="cloudUrl" placeholder="https://xxxx.supabase.co" autocomplete="off"></label>
+ <label>公开 publishable Key<input id="cloudKey" placeholder="输入公开客户端 Key" autocomplete="off"></label>
+ <button id="saveCloud" class="btn secondary">保存连接信息</button></details>
+ <p class="sub">无需注册新密码。可使用你登录 ChatGPT 时的邮箱地址，但 ChatGPT 登录状态不能直接复用；本地读书始终无需登录。</p>
+ <label>登录邮箱<input id="email" type="email" autocomplete="email" placeholder="邮箱地址"></label>
+ <button id="sendLoginEmail" class="btn secondary" type="button">发送免密码登录邮件</button>
+ <label>邮件验证码 / 邮件登录链接<input id="emailCode" type="text" autocomplete="one-time-code" placeholder="6位验证码，或复制邮件里的完整登录链接"></label>
+ <p class="sub">如果邮件只有可点击的链接，请先<strong>复制链接地址</strong>，粘贴到上面验证；不要把邮件链接或验证码发给任何人。</p>
+ <div class="button-row"><button id="verifyEmail" class="btn primary">验证并开启同步</button><button id="signOut" class="btn secondary">退出同步</button></div>
+ <button id="syncNow" class="btn secondary">立即同步</button>
+ <div class="button-row"><button id="shareCurrentBook" class="btn secondary">让 Mac 读取当前书</button><button id="getCurrentBook" class="btn secondary">从云端取当前书</button></div><p id="cloudMessage" role="status" class="sub"></p></div>
+ </details><div class="section-heading"><h3>历史数据与日志</h3></div>
+ <div class="button-row"><button id="importOld" class="btn secondary">查找原版数据</button><button id="exportData" class="btn secondary">导出私人备份</button><label class="btn secondary import-label">导入备份<input id="backupFile" type="file" accept=".json,application/json" hidden></label></div>
+ <p id="oldDataStatus" class="sub"></p><button id="exportJournal" class="quiet">导出阅读日志数据（供 Obsidian） ↗</button>
+ <p class="sub">旧数据迁移只读取原文件，不覆盖、不删除原版收藏。</p>
+</section>
+</main>
+<nav class="bottom-nav"><button data-target="home" class="selected"><span>⌂</span>首页</button><button data-target="shelf"><span>▤</span>书架</button><button data-target="discover"><span>◇</span>发现</button><button data-target="news"><span>▧</span>资讯</button><button data-target="profile"><span>◷</span>记录</button></nav>
+</div>
+<div id="reader" hidden>
+ <header class="reader-toolbar"><button id="closeReader" class="iconbtn" aria-label="退出阅读">‹</button><div class="reader-heading"><small id="readerBook">正在阅读</small><div id="readerChapter">—</div></div><button id="readerOptions" class="iconbtn" aria-label="阅读设置">Aa</button></header>
+ <div id="readerPaper" class="reader-paper"><div id="readerText" class="reader-text"></div><div class="tap-zone left" data-page="previous" aria-label="上一页"></div><div class="tap-zone right" data-page="next" aria-label="下一页"></div></div>
+ <footer class="reader-footer"><span id="readerProgress">0%</span><span id="readerPageHint">轻触左右区域翻页</span><button id="toggleToc" class="quiet">目录</button></footer>
+ <div id="readerMenu" class="reader-menu" hidden><label>字号 <input id="fontSize" type="range" min="16" max="28" step="1" value="20"></label><label>行距 <input id="lineHeight" type="range" min="14" max="23" step="1" value="18"></label><div class="button-row"><button data-theme="paper" class="btn secondary">纸张</button><button data-theme="night" class="btn secondary">夜间</button><button data-theme="warm" class="btn secondary">暖色</button></div></div>
+ <div id="tocMenu" class="toc-menu" hidden><h3>目录</h3><div id="tocList"></div><button id="closeToc" class="btn secondary">返回阅读</button></div>
+</div>
+<div id="toast" class="toast" hidden role="status"></div>
+<script src="vendor/jszip.min.js"></script><script type="module" src="app.js"></script>
+</body></html>
