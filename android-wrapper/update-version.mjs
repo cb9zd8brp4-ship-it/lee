@@ -1,0 +1,10 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const dir=path.dirname(fileURLToPath(import.meta.url));
+const gradle=path.join(dir,'android/app/build.gradle');
+let text=await readFile(gradle,'utf8');
+if(!/versionCode\s+\d+/.test(text)||!/versionName\s+"[^"]+"/.test(text))throw Error('Could not locate Android app version');
+text=text.replace(/versionCode\s+\d+/,'versionCode 14').replace(/versionName\s+"[^"]+"/,'versionName "1.4.0"');
+await writeFile(gradle,text);
+console.log('Lee Reader Android app version: 1.4.0 (14)');
